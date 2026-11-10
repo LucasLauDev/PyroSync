@@ -34,7 +34,9 @@ import {
   IconActivity,
   IconBolt,
   IconFilter,
-  IconAdjustmentsHorizontal,
+  IconLayersSubtract,
+  IconInfoCircle,
+  IconCheck,
 } from "@tabler/icons-react";
 
 // Register Chart.js components
@@ -101,7 +103,7 @@ export function FireComparison({
   onSelectPrimaryRegion,
 }: FireComparisonProps) {
   // -----------------------------------------------------------------
-  // Input 1 Configuration States (Now fully interactive inside the tab)
+  // Input 1 Configuration States (Interactive inside the tab)
   // -----------------------------------------------------------------
   const [region1, setRegion1] = useState<string>(primaryRegion);
   const [year1, setYear1] = useState<number>(2026);
@@ -235,7 +237,7 @@ export function FireComparison({
   const yData1 = data1?.calendar.find((y) => y.year === year1);
   const yData2 = data2?.calendar.find((y) => y.year === year2);
 
-  // Calculated annual totals respecting metric, sensor, and diurnal filters
+  // Total burden
   const totalBurden1 = useMemo(() => {
     if (!yData1) return 0;
     return yData1.months.reduce((acc, m) => {
@@ -249,6 +251,46 @@ export function FireComparison({
       return acc + getMonthlyMetricValue(m, sensor2, metric2, daynight2, nightRatio2);
     }, 0);
   }, [yData2, sensor2, metric2, daynight2, nightRatio2]);
+
+  // Total FRP Energy
+  const totalFrp1 = useMemo(() => {
+    if (!yData1) return 0;
+    return yData1.months.reduce((acc, m) => {
+      let f = m.harmonized_frp_mw || 0;
+      if (daynight1 === "D") f *= Math.max(1 - nightRatio1, 0.05);
+      if (daynight1 === "N") f *= Math.max(nightRatio1, 0.05);
+      return acc + f;
+    }, 0);
+  }, [yData1, daynight1, nightRatio1]);
+
+  const totalFrp2 = useMemo(() => {
+    if (!yData2) return 0;
+    return yData2.months.reduce((acc, m) => {
+      let f = m.harmonized_frp_mw || 0;
+      if (daynight2 === "D") f *= Math.max(1 - nightRatio2, 0.05);
+      if (daynight2 === "N") f *= Math.max(nightRatio2, 0.05);
+      return acc + f;
+    }, 0);
+  }, [yData2, daynight2, nightRatio2]);
+
+  // Mean FRP per fire
+  const meanFrp1 = totalBurden1 > 0 ? (totalFrp1 / totalBurden1).toFixed(1) : "0.0";
+  const meanFrp2 = totalBurden2 > 0 ? (totalFrp2 / totalBurden2).toFixed(1) : "0.0";
+
+  // Total Hex-Days
+  const totalHex1 = useMemo(() => {
+    if (!yData1) return 0;
+    return yData1.months.reduce((acc, m) => acc + (m.active_fire_hex_days || 0), 0);
+  }, [yData1]);
+
+  const totalHex2 = useMemo(() => {
+    if (!yData2) return 0;
+    return yData2.months.reduce((acc, m) => acc + (m.active_fire_hex_days || 0), 0);
+  }, [yData2]);
+
+  // Season duration
+  const seasonDuration1 = yData1?.season_timing?.duration_months || 0;
+  const seasonDuration2 = yData2?.season_timing?.duration_months || 0;
 
   // Peak months
   const peak1 = useMemo(() => {
@@ -293,6 +335,217 @@ export function FireComparison({
     if (totalBurden2 === 0) return 100;
     return Math.round(((totalBurden1 - totalBurden2) / totalBurden2) * 100);
   }, [totalBurden1, totalBurden2]);
+
+  // -----------------------------------------------------------------
+  // ALL METRICS DIFFERENTIALS CALCULATION
+  // -----------------------------------------------------------------
+  const metricsDifferences = useMemo(() => {
+    // 1. Total Burden
+    const dBurden = totalBurden1 - totalBurden2;
+    const pBurden =
+      totalBurden2 > 0
+        ? Math.round((dBurden / totalBurden2) * 100)
+        : totalBurden1 > 0
+        ? 100
+        : 0;
+
+    // 2. Total FRP
+    const dFrp = totalFrp1 - totalFrp2;
+    const pFrp =
+      totalFrp2 > 0
+        ? Math.round((dFrp / totalFrp2) * 100)
+        : totalFrp1 > 0
+        ? 100
+        : 0;
+
+    // 3. Mean FRP
+    const mFrp1 = parseFloat(meanFrp1);
+    const mFrp2 = parseFloat(meanFrp2);
+    const dMeanFrp = (mFrp1 - mFrp2).toFixed(1);
+    const pMeanFrp = mFrp2 > 0 ? Math.round(((mFrp1 - mFrp2) / mFrp2) * 100) : 0;
+
+    // 4. Hex-Days
+    const dHex = totalHex1 - totalHex2;
+    const pHex =
+      totalHex2 > 0
+        ? Math.round((dHex / totalHex2) * 100)
+        : totalHex1 > 0
+        ? 100
+        : 0;
+
+    // 5. Nocturnal Smoldering
+    const dNightPct = (nightPct1 - nightPct2).toFixed(1);
+
+    // 6. Peak Month
+    const mIdx1 = MONTH_NAMES.indexOf(peak1.month);
+    const mIdx2 = MONTH_NAMES.indexOf(peak2.month);
+    const monthOffset = mIdx1 >= 0 && mIdx2 >= 0 ? Math.abs(mIdx1 - mIdx2) : 0;
+
+    // 7. Peak Robust Z-Score
+    const dZScore = (peak1.zScore - peak2.zScore).toFixed(2);
+
+    // 8. Season Duration
+    const dDuration = seasonDuration1 - seasonDuration2;
+
+    // 9. Continuity Multiplier
+    const dContinuity = (preset1.continuityFactor - preset2.continuityFactor).toFixed(1);
+
+    return [
+      {
+        id: "burden",
+        title: "Total Fire Burden",
+        category: "Fire Volume",
+        icon: IconFlame,
+        val1: totalBurden1.toLocaleString(),
+        val2: totalBurden2.toLocaleString(),
+        diffAbs: dBurden > 0 ? `+${dBurden.toLocaleString()}` : dBurden.toLocaleString(),
+        diffPct: pBurden > 0 ? `+${pBurden}%` : `${pBurden}%`,
+        winner: dBurden > 0 ? "input1" : dBurden < 0 ? "input2" : "tie",
+        insight:
+          dBurden > 0
+            ? `Input 1 has +${Math.abs(pBurden)}% higher total fire volume`
+            : dBurden < 0
+            ? `Input 2 has +${Math.abs(pBurden)}% higher total fire volume`
+            : "Identical fire activity volume",
+      },
+      {
+        id: "frp",
+        title: "Total Radiative Energy (FRP)",
+        category: "Thermal Energy",
+        icon: IconBolt,
+        val1: `${Math.round(totalFrp1).toLocaleString()} MW`,
+        val2: `${Math.round(totalFrp2).toLocaleString()} MW`,
+        diffAbs: `${dFrp > 0 ? `+${Math.round(dFrp).toLocaleString()}` : Math.round(dFrp).toLocaleString()} MW`,
+        diffPct: pFrp > 0 ? `+${pFrp}%` : `${pFrp}%`,
+        winner: dFrp > 0 ? "input1" : dFrp < 0 ? "input2" : "tie",
+        insight:
+          dFrp > 0
+            ? "Input 1 released more cumulative thermal radiative energy"
+            : "Input 2 released more cumulative thermal radiative energy",
+      },
+      {
+        id: "mean_frp",
+        title: "Mean Fire Radiative Intensity",
+        category: "Severity",
+        icon: IconActivity,
+        val1: `${meanFrp1} MW`,
+        val2: `${meanFrp2} MW`,
+        diffAbs: `${parseFloat(dMeanFrp) > 0 ? `+${dMeanFrp}` : dMeanFrp} MW`,
+        diffPct: pMeanFrp > 0 ? `+${pMeanFrp}%` : `${pMeanFrp}%`,
+        winner: parseFloat(dMeanFrp) > 0 ? "input1" : parseFloat(dMeanFrp) < 0 ? "input2" : "tie",
+        insight:
+          parseFloat(dMeanFrp) > 0
+            ? "Input 1 exhibits higher radiative severity per active detection"
+            : "Input 2 exhibits higher radiative severity per active detection",
+      },
+      {
+        id: "hex_days",
+        title: "Active Fire Hex-Days (Res-7)",
+        category: "Spatial Footprint",
+        icon: IconChartBar,
+        val1: totalHex1.toLocaleString(),
+        val2: totalHex2.toLocaleString(),
+        diffAbs: dHex > 0 ? `+${dHex.toLocaleString()}` : dHex.toLocaleString(),
+        diffPct: pHex > 0 ? `+${pHex}%` : `${pHex}%`,
+        winner: dHex > 0 ? "input1" : dHex < 0 ? "input2" : "tie",
+        insight:
+          dHex > 0
+            ? "Input 1 burned across a broader spatial extent"
+            : "Input 2 burned across a broader spatial extent",
+      },
+      {
+        id: "smoldering",
+        title: "Nocturnal Smoldering Ratio",
+        category: "Diurnal Behavior",
+        icon: IconMoon,
+        val1: `${nightPct1}% nocturnal`,
+        val2: `${nightPct2}% nocturnal`,
+        diffAbs: `${parseFloat(dNightPct) > 0 ? `+${dNightPct}` : dNightPct}% pts`,
+        diffPct: "Percentage pts",
+        winner: parseFloat(dNightPct) > 0 ? "input1" : parseFloat(dNightPct) < 0 ? "input2" : "tie",
+        insight:
+          parseFloat(dNightPct) > 0
+            ? "Input 1 shows elevated nocturnal smoldering (tropical peatland hazard)"
+            : "Input 2 shows elevated nocturnal smoldering",
+      },
+      {
+        id: "peak_month",
+        title: "Peak Fire Season Month",
+        category: "Season Timing",
+        icon: IconCalendar,
+        val1: `${peak1.month} (${peak1.count.toLocaleString()})`,
+        val2: `${peak2.month} (${peak2.count.toLocaleString()})`,
+        diffAbs: monthOffset === 0 ? "Synchronized" : `${monthOffset} mo offset`,
+        diffPct: monthOffset === 0 ? "Same Month" : "Asynchronous",
+        winner: "neutral",
+        insight:
+          monthOffset === 0
+            ? `Both regions peaked in ${peak1.month}`
+            : `Seasonal offset of ${monthOffset} months (${peak1.month} vs ${peak2.month})`,
+      },
+      {
+        id: "anomaly",
+        title: "Peak Monthly Robust Z-Score",
+        category: "Climatology",
+        icon: IconTrendingUp,
+        val1: `${peak1.zScore > 0 ? `+${peak1.zScore}` : peak1.zScore}σ`,
+        val2: `${peak2.zScore > 0 ? `+${peak2.zScore}` : peak2.zScore}σ`,
+        diffAbs: `${parseFloat(dZScore) > 0 ? `+${dZScore}` : dZScore}σ`,
+        diffPct: "Z-score delta",
+        winner: parseFloat(dZScore) > 0 ? "input1" : parseFloat(dZScore) < 0 ? "input2" : "tie",
+        insight:
+          parseFloat(dZScore) > 0
+            ? "Input 1 experienced a more extreme statistical surge relative to baseline"
+            : "Input 2 experienced a more extreme statistical surge relative to baseline",
+      },
+      {
+        id: "duration",
+        title: "Active Fire Season Duration",
+        category: "Seasonality",
+        icon: IconCalendar,
+        val1: `${seasonDuration1} months`,
+        val2: `${seasonDuration2} months`,
+        diffAbs: `${dDuration > 0 ? `+${dDuration}` : dDuration} mo`,
+        diffPct: "Duration delta",
+        winner: dDuration > 0 ? "input1" : dDuration < 0 ? "input2" : "tie",
+        insight:
+          dDuration > 0
+            ? `Input 1 active burning window lasted ${dDuration} months longer`
+            : dDuration < 0
+            ? `Input 2 active burning window lasted ${Math.abs(dDuration)} months longer`
+            : "Equal seasonal burn window",
+      },
+      {
+        id: "continuity",
+        title: "Continuity Multiplier",
+        category: "Sensor Calibration",
+        icon: IconScale,
+        val1: `×${preset1.continuityFactor}`,
+        val2: `×${preset2.continuityFactor}`,
+        diffAbs: `${parseFloat(dContinuity) > 0 ? `+${dContinuity}` : dContinuity}×`,
+        diffPct: "Scaling delta",
+        winner: "neutral",
+        insight: "Regional MODIS-to-VIIRS sensor footprint scaling factor",
+      },
+    ];
+  }, [
+    totalBurden1,
+    totalBurden2,
+    totalFrp1,
+    totalFrp2,
+    meanFrp1,
+    meanFrp2,
+    totalHex1,
+    totalHex2,
+    nightPct1,
+    nightPct2,
+    peak1,
+    peak2,
+    seasonDuration1,
+    seasonDuration2,
+    preset1,
+    preset2,
+  ]);
 
   // -----------------------------------------------------------------
   // 1. Cumulative Curves Data
@@ -948,7 +1201,7 @@ export function FireComparison({
         </div>
       </div>
 
-      {/* 2. Head-to-Head Comparative Summary Cards */}
+      {/* 2. Comparative Summary Cards & High-Level Differential */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Input 1 Summary Card */}
         <Card className="bg-slate-900/50 border-amber-500/40 shadow-md">
@@ -971,6 +1224,10 @@ export function FireComparison({
               </span>
             </div>
             <div className="flex items-baseline justify-between text-xs font-mono">
+              <span className="text-slate-400">Total Thermal Energy (FRP):</span>
+              <span className="text-amber-400 font-semibold">{Math.round(totalFrp1).toLocaleString()} MW</span>
+            </div>
+            <div className="flex items-baseline justify-between text-xs font-mono">
               <span className="text-slate-400">Peak Month:</span>
               <span className="text-amber-400 font-semibold">
                 {peak1.month} ({peak1.count.toLocaleString()})
@@ -983,22 +1240,61 @@ export function FireComparison({
           </CardContent>
         </Card>
 
-        {/* Center Delta Differential Card */}
-        <Card className="bg-slate-900/50 border-slate-800 flex flex-col justify-center text-center p-4">
-          <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider mb-1">
-            Comparative Differential
+        {/* Center Comparative Differential Overview Card */}
+        <Card className="bg-slate-900/70 border-slate-700/80 flex flex-col justify-between p-4 shadow-xl shadow-slate-950/50 relative overflow-hidden">
+          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-amber-500 via-emerald-400 to-cyan-500" />
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider font-bold flex items-center gap-1">
+                <IconScale className="size-3.5 text-cyan-400" />
+                <span>Comparative Differential</span>
+              </span>
+              <Badge variant="outline" className="text-[9px] font-mono border-slate-700 text-slate-400">
+                All Metrics
+              </Badge>
+            </div>
+
+            <div className="text-lg font-extrabold font-mono leading-tight mb-2">
+              {diffPct > 0 ? (
+                <span className="text-amber-400">+{diffPct}% Fire Burden in Input 1</span>
+              ) : diffPct < 0 ? (
+                <span className="text-cyan-400">+{Math.abs(diffPct)}% Fire Burden in Input 2</span>
+              ) : (
+                <span className="text-slate-300">Equivalent Intensity</span>
+              )}
+            </div>
+
+            {/* Quick Multi-Metric Mini Pills */}
+            <div className="grid grid-cols-2 gap-1.5 text-[10px] font-mono pt-1">
+              <div className="bg-slate-950/80 p-1.5 rounded border border-slate-800 flex items-center justify-between">
+                <span className="text-slate-400">⚡ FRP Energy:</span>
+                <span className={totalFrp1 >= totalFrp2 ? "text-amber-400 font-bold" : "text-cyan-400 font-bold"}>
+                  {totalFrp2 > 0 ? `${Math.round(((totalFrp1 - totalFrp2) / totalFrp2) * 100)}%` : "N/A"}
+                </span>
+              </div>
+              <div className="bg-slate-950/80 p-1.5 rounded border border-slate-800 flex items-center justify-between">
+                <span className="text-slate-400">🌙 Smolder:</span>
+                <span className={nightPct1 >= nightPct2 ? "text-amber-400 font-bold" : "text-cyan-400 font-bold"}>
+                  {nightPct1 - nightPct2 > 0 ? `+${(nightPct1 - nightPct2).toFixed(1)}%` : `${(nightPct1 - nightPct2).toFixed(1)}%`}
+                </span>
+              </div>
+              <div className="bg-slate-950/80 p-1.5 rounded border border-slate-800 flex items-center justify-between">
+                <span className="text-slate-400">🗺️ Hex Extent:</span>
+                <span className={totalHex1 >= totalHex2 ? "text-amber-400 font-bold" : "text-cyan-400 font-bold"}>
+                  {totalHex2 > 0 ? `${Math.round(((totalHex1 - totalHex2) / totalHex2) * 100)}%` : "N/A"}
+                </span>
+              </div>
+              <div className="bg-slate-950/80 p-1.5 rounded border border-slate-800 flex items-center justify-between">
+                <span className="text-slate-400">📅 Peak Shift:</span>
+                <span className="text-slate-200 font-bold">
+                  {peak1.month} vs {peak2.month}
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="text-xl font-bold font-mono">
-            {diffPct > 0 ? (
-              <span className="text-amber-400">+{diffPct}% in Input 1</span>
-            ) : diffPct < 0 ? (
-              <span className="text-cyan-400">+{Math.abs(diffPct)}% in Input 2</span>
-            ) : (
-              <span className="text-slate-300">Equivalent Intensity</span>
-            )}
-          </div>
-          <div className="text-[11px] text-slate-400 font-mono mt-1">
-            Peaks: <strong className="text-amber-400">{peak1.month}</strong> vs <strong className="text-cyan-400">{peak2.month}</strong>
+
+          <div className="text-[10px] text-slate-400 font-mono text-center pt-2 border-t border-slate-800/80 flex items-center justify-center gap-1">
+            <span className="text-cyan-400 font-semibold">9 metrics compared below</span>
           </div>
         </Card>
 
@@ -1023,6 +1319,10 @@ export function FireComparison({
               </span>
             </div>
             <div className="flex items-baseline justify-between text-xs font-mono">
+              <span className="text-slate-400">Total Thermal Energy (FRP):</span>
+              <span className="text-cyan-400 font-semibold">{Math.round(totalFrp2).toLocaleString()} MW</span>
+            </div>
+            <div className="flex items-baseline justify-between text-xs font-mono">
               <span className="text-slate-400">Peak Month:</span>
               <span className="text-cyan-400 font-semibold">
                 {peak2.month} ({peak2.count.toLocaleString()})
@@ -1036,7 +1336,150 @@ export function FireComparison({
         </Card>
       </div>
 
-      {/* 3. Side-by-Side Chart Comparisons */}
+      {/* 3. Comprehensive Metrics Differential Matrix Table */}
+      <Card className="border border-slate-800 bg-slate-900/70 overflow-hidden shadow-2xl">
+        <CardHeader className="py-3 px-4 border-b border-slate-800/80 bg-slate-950/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-xs font-bold font-mono uppercase tracking-wider text-white flex items-center gap-2">
+              <IconScale className="size-4 text-emerald-400" />
+              <span>Comparative Differential Matrix (All Metrics Differences)</span>
+            </CardTitle>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Exact quantitative discrepancies, absolute delta (Δ), percentage variance, and climatological dominance between Input 1 and Input 2.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 font-mono text-[10px]">
+            <span className="flex items-center gap-1 text-amber-400">
+              <span className="size-2 rounded-full bg-amber-400" /> Input 1 Leads
+            </span>
+            <span className="text-slate-600">|</span>
+            <span className="flex items-center gap-1 text-cyan-400">
+              <span className="size-2 rounded-full bg-cyan-400" /> Input 2 Leads
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs font-mono">
+            <thead>
+              <tr className="border-b border-slate-800 bg-slate-950/90 text-slate-400 text-[11px]">
+                <th className="py-2.5 px-4 font-semibold">Metric & Classification</th>
+                <th className="py-2.5 px-3 font-semibold text-amber-400">
+                  Input 1: {preset1.name} ({year1})
+                </th>
+                <th className="py-2.5 px-3 font-semibold text-cyan-400">
+                  Input 2: {preset2.name} ({year2})
+                </th>
+                <th className="py-2.5 px-3 font-semibold">Absolute Difference (Δ)</th>
+                <th className="py-2.5 px-3 font-semibold">Relative Variance (%)</th>
+                <th className="py-2.5 px-4 font-semibold">Comparative Analysis & Insight</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {metricsDifferences.map((row) => {
+                const Icon = row.icon;
+                const isInput1 = row.winner === "input1";
+                const isInput2 = row.winner === "input2";
+
+                return (
+                  <tr
+                    key={row.id}
+                    className="hover:bg-slate-800/40 transition-colors"
+                  >
+                    {/* Metric Name */}
+                    <td className="py-2.5 px-4">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`size-6 rounded-md flex items-center justify-center shrink-0 ${
+                            isInput1
+                              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                              : isInput2
+                              ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+                              : "bg-slate-800 text-slate-400"
+                          }`}
+                        >
+                          <Icon className="size-3.5" />
+                        </div>
+                        <div>
+                          <span className="font-semibold text-white block">
+                            {row.title}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-sans">
+                            {row.category}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Value 1 */}
+                    <td className="py-2.5 px-3 font-semibold text-slate-200">
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                        {row.val1}
+                      </span>
+                    </td>
+
+                    {/* Value 2 */}
+                    <td className="py-2.5 px-3 font-semibold text-slate-200">
+                      <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                        {row.val2}
+                      </span>
+                    </td>
+
+                    {/* Absolute Diff */}
+                    <td className="py-2.5 px-3 font-bold">
+                      <span
+                        className={
+                          isInput1
+                            ? "text-amber-400"
+                            : isInput2
+                            ? "text-cyan-400"
+                            : "text-slate-300"
+                        }
+                      >
+                        {row.diffAbs}
+                      </span>
+                    </td>
+
+                    {/* Relative % */}
+                    <td className="py-2.5 px-3 font-bold">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-mono ${
+                          isInput1
+                            ? "border-amber-500/40 text-amber-300 bg-amber-500/10"
+                            : isInput2
+                            ? "border-cyan-500/40 text-cyan-300 bg-cyan-500/10"
+                            : "border-slate-700 text-slate-400"
+                        }`}
+                      >
+                        {row.diffPct}
+                      </Badge>
+                    </td>
+
+                    {/* Insight */}
+                    <td className="py-2.5 px-4 text-[11px] text-slate-300 font-sans">
+                      <div className="flex items-center gap-1.5">
+                        {isInput1 && (
+                          <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-mono px-1 py-0 shrink-0">
+                            Input 1 Leads
+                          </Badge>
+                        )}
+                        {isInput2 && (
+                          <Badge className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[9px] font-mono px-1 py-0 shrink-0">
+                            Input 2 Leads
+                          </Badge>
+                        )}
+                        <span>{row.insight}</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      {/* 4. Side-by-Side Chart Comparisons */}
 
       {/* Comparison 1: Cumulative Season Progression */}
       <div className="space-y-2">
