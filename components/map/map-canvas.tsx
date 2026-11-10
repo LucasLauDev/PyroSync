@@ -293,6 +293,8 @@ export function MapCanvas({
         color = isHighFrp ? "#fde725" : isViirs ? "#35b779" : "#31688e";
       } else if (colorRamp === "inferno") {
         color = isHighFrp ? "#fcffa4" : isViirs ? "#f98e09" : "#bb3754";
+      } else if (colorRamp === "diverging_anomaly") {
+        color = isHighFrp ? "#ef4444" : isViirs ? "#f97316" : "#38bdf8";
       }
 
       const radius = isHighFrp ? 7 : isViirs ? 5 : 6;

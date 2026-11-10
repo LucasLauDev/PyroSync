@@ -27,6 +27,10 @@ import {
   IconTrendingUp,
   IconAlertTriangle,
   IconScale,
+  IconSun,
+  IconMoon,
+  IconClock,
+  IconCheck,
 } from "@tabler/icons-react";
 
 interface FireAnalysisPageProps {
@@ -44,6 +48,16 @@ interface FireAnalysisPageProps {
   onSelectCell: (year: number, month: number) => void;
   onOpenExportDialog: () => void;
   onSwitchToMap: () => void;
+  // Standardized shared filter props
+  startDate?: string;
+  endDate?: string;
+  onChangeDateRange?: (start: string, end: string) => void;
+  sensorFilter?: "all" | "MODIS" | "VIIRS";
+  onChangeSensorFilter?: (sensor: "all" | "MODIS" | "VIIRS") => void;
+  daynightFilter?: "all" | "D" | "N";
+  onChangeDaynightFilter?: (phase: "all" | "D" | "N") => void;
+  minFrpFilter?: number;
+  onChangeMinFrpFilter?: (frp: number) => void;
 }
 
 export function FireAnalysisPage({
@@ -61,6 +75,15 @@ export function FireAnalysisPage({
   onSelectCell,
   onOpenExportDialog,
   onSwitchToMap,
+  startDate = "2026-09-10",
+  endDate = "2026-11-09",
+  onChangeDateRange,
+  sensorFilter = "all",
+  onChangeSensorFilter,
+  daynightFilter = "all",
+  onChangeDaynightFilter,
+  minFrpFilter = 0,
+  onChangeMinFrpFilter,
 }: FireAnalysisPageProps) {
   const [activeAnalysisSection, setActiveAnalysisSection] = useState<"trends" | "calendar" | "compare" | "regimes">("trends");
 
@@ -142,7 +165,7 @@ export function FireAnalysisPage({
             </div>
           </div>
 
-          {/* Controls Strip: Region, Harmonization Mode, View Metric, Color Ramp */}
+          {/* Controls Strip 1: Region, Harmonization Mode, View Metric, Color Ramp */}
           <div className="mt-5 pt-4 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
             {/* 1. World Region Selector */}
             <div className="space-y-1">
@@ -152,7 +175,7 @@ export function FireAnalysisPage({
               <select
                 value={selectedRegion}
                 onChange={(e) => onSelectRegion(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
               >
                 {REGION_PRESETS.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -170,12 +193,12 @@ export function FireAnalysisPage({
               <select
                 value={harmonizationMode}
                 onChange={(e) => onChangeHarmonizationMode(e.target.value as HarmonizationMode)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer font-mono"
               >
                 <option value="overlap_scaled">Overlap Continuity Scaled (k_ratio)</option>
-                <option value="hex_days">Active Fire Hex-Days (H3 Res 7)</option>
+                <option value="active_fire_hex_days">Active Fire Hex-Days (H3 Res 7)</option>
                 <option value="vza_frp">VZA-Recalibrated FRP (MW)</option>
-                <option value="modis_equiv">MODIS-Equivalent (&gt;3.7 MW)</option>
+                <option value="modis_equivalent">MODIS-Equivalent (&gt;3.7 MW)</option>
               </select>
             </div>
 
@@ -187,11 +210,11 @@ export function FireAnalysisPage({
               <select
                 value={viewMetric}
                 onChange={(e) => onChangeViewMetric(e.target.value as ViewMetric)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer font-mono"
               >
                 <option value="harmonized_count">Harmonized Hotspots Count</option>
-                <option value="hex_days">Active Fire Hex-Days</option>
-                <option value="frp_mw">Radiative Power Energy (MW)</option>
+                <option value="active_fire_hex_days">Active Fire Hex-Days</option>
+                <option value="harmonized_frp_mw">Radiative Power Energy (MW)</option>
               </select>
             </div>
 
@@ -203,14 +226,130 @@ export function FireAnalysisPage({
               <select
                 value={colorRamp}
                 onChange={(e) => onChangeColorRamp(e.target.value as ColorRampType)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer font-mono"
               >
                 <option value="flame">Flame / Thermal (Orange-Red)</option>
                 <option value="viridis">Viridis (Colorblind-Safe)</option>
                 <option value="inferno">Inferno (High Contrast Dark)</option>
-                <option value="diverging">Diverging Anomaly (Blue/Gray/Red)</option>
+                <option value="diverging_anomaly">Diverging Anomaly (Blue/Gray/Red)</option>
               </select>
             </div>
+          </div>
+
+          {/* Controls Strip 2: Synchronized Shared Filters (Date Window, Sensor, Diurnal Phase) */}
+          <div className="mt-3 pt-3 border-t border-slate-800/60 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            {/* Observation Date Window Presets */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                <span className="flex items-center gap-1">
+                  <IconCalendar className="size-3 text-amber-500" />
+                  <span>Observation Window:</span>
+                </span>
+                <span className="text-amber-400 font-bold">
+                  {startDate} → {endDate}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
+                {[
+                  { label: "7 Days", s: "2026-11-02", e: "2026-11-09" },
+                  { label: "30 Days", s: "2026-10-10", e: "2026-11-09" },
+                  { label: "Oct 2026", s: "2026-10-01", e: "2026-10-31" },
+                  { label: "Full NRT", s: "2026-09-10", e: "2026-11-09" },
+                  { label: "2000–2026", s: "2000-01-01", e: "2026-11-09" },
+                ].map((preset) => {
+                  const isActive = startDate === preset.s && endDate === preset.e;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => onChangeDateRange?.(preset.s, preset.e)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold transition-all cursor-pointer ${
+                        isActive
+                          ? "bg-amber-500 text-slate-950 font-bold border border-amber-300 shadow-sm"
+                          : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-900"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Satellite Sensor Stream */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[11px] text-slate-400">
+                <span>Satellite Sensor Stream:</span>
+                <span className="text-amber-400 font-mono font-bold">
+                  {sensorFilter === "all" ? "All Sensors" : sensorFilter}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-1">
+                {(["all", "MODIS", "VIIRS"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => onChangeSensorFilter?.(s)}
+                    className={`h-6 rounded text-[11px] font-mono font-medium transition-all cursor-pointer ${
+                      sensorFilter === s
+                        ? "bg-amber-600 text-white font-bold shadow-sm"
+                        : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-900"
+                    }`}
+                  >
+                    {s === "all" ? "All Sensors" : s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Diurnal Phase */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[11px] text-slate-400">
+                <span>Diurnal Phase:</span>
+                <span className="text-amber-400 font-mono font-bold">
+                  {daynightFilter === "all" ? "Day & Night" : daynightFilter === "D" ? "Day Flaming" : "Night Smoldering"}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-1">
+                {[
+                  { id: "all", label: "All Phases", icon: null },
+                  { id: "D", label: "Day", icon: IconSun },
+                  { id: "N", label: "Night", icon: IconMoon },
+                ].map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => onChangeDaynightFilter?.(id as any)}
+                    className={`h-6 rounded text-[11px] font-mono font-medium flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                      daynightFilter === id
+                        ? "bg-amber-600 text-white font-bold shadow-sm"
+                        : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-900"
+                    }`}
+                  >
+                    {Icon && <Icon className="size-2.5" />}
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Synchronized Status Pill */}
+          <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+            <div className="flex items-center gap-1.5 text-slate-400">
+              <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-emerald-400 font-semibold">Standardized Parameters (Live Synced with Map View):</span>
+              <span className="text-slate-300">
+                {currentPreset.name} • {harmonizationMode} • {viewMetric} • {colorRamp} ramp • {sensorFilter} • {daynightFilter} phase
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={onSwitchToMap}
+              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 hover:underline cursor-pointer"
+            >
+              <IconMap className="size-3" /> Inspect on Live Map →
+            </button>
           </div>
         </div>
 

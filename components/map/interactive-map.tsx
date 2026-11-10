@@ -281,6 +281,10 @@ export function InteractiveMap() {
   const handleSelectCalendarCell = (year: number, month: number) => {
     setSelectedYear(year);
     setSelectedMonth(month);
+    const mStr = String(month).padStart(2, "0");
+    const lastDay = new Date(year, month, 0).getDate();
+    setStartDate(`${year}-${mStr}-01`);
+    setEndDate(`${year}-${mStr}-${String(lastDay).padStart(2, "0")}`);
     // If year 2026, keep region focused
     const preset = REGION_PRESETS.find((r) => r.id === selectedRegion);
     if (preset) {
@@ -387,6 +391,16 @@ export function InteractiveMap() {
             onChangeColorRamp={setColorRamp}
             harmonizationMode={harmonizationMode}
             onChangeHarmonizationMode={setHarmonizationMode}
+            viewMetric={viewMetric}
+            onChangeViewMetric={setViewMetric}
+            selectedYear={selectedYear}
+            selectedMonth={selectedMonth}
+            onResetSelectedPeriod={() => {
+              setSelectedYear(2026);
+              setSelectedMonth(10);
+              setStartDate("2026-09-10");
+              setEndDate("2026-11-09");
+            }}
             remarkArea={remarkArea}
             onClearRemarkArea={() => setRemarkArea({ type: "none" })}
             onOpenRemarkDialog={() => setIsRemarkDialogOpen(true)}
@@ -457,6 +471,19 @@ export function InteractiveMap() {
             onSelectCell={handleSelectCalendarCell}
             onOpenExportDialog={() => setIsExportDialogOpen(true)}
             onSwitchToMap={() => handleSwitchMainTab("map")}
+            // Standardized shared filters
+            startDate={startDate}
+            endDate={endDate}
+            onChangeDateRange={(s, e) => {
+              setStartDate(s);
+              setEndDate(e);
+            }}
+            sensorFilter={sensorFilter}
+            onChangeSensorFilter={setSensorFilter}
+            daynightFilter={daynightFilter}
+            onChangeDaynightFilter={setDaynightFilter}
+            minFrpFilter={minFrpFilter}
+            onChangeMinFrpFilter={setMinFrpFilter}
           />
         </div>
 
