@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
-// Distance helper
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
+// Haversine distance helper (km)
 function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -22,13 +27,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type") || "hotspots"; // "hotspots" or "calendar"
     const region = searchParams.get("region") || "Global";
-    const startDate = searchParams.get("startDate");
-    const endDate = searchParams.get("endDate");
+    const startDate = searchParams.get("startDate") || "";
+    const endDate = searchParams.get("endDate") || "";
     const sensor = searchParams.get("sensor") || "all";
     const minFrp = parseFloat(searchParams.get("minFrp") || "0");
     const daynight = searchParams.get("daynight") || "all";
 
-    // Bbox & Remark
+    // Bounding Box AOI
     const bboxStr = searchParams.get("bbox");
     let bbox: { minLon: number; minLat: number; maxLon: number; maxLat: number } | null = null;
     if (bboxStr) {
@@ -38,6 +43,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Circle AOI
     const centerStr = searchParams.get("remarkCenter");
     const radiusKm = parseFloat(searchParams.get("radiusKm") || "0");
     let remarkCenter: { lat: number; lon: number } | null = null;
@@ -48,8 +54,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // -------------------------------------------------------------
+    // EXPORT TYPE 1: 26-Year Monthly Calendar Matrix CSV
+    // -------------------------------------------------------------
     if (type === "calendar") {
-      // Export 26-year calendar CSV
       const calPath = path.join(process.cwd(), "public", "data", "calendar_2000_2026.json");
       if (!fs.existsSync(calPath)) {
         return new NextResponse("Calendar data not available", { status: 404 });
@@ -69,17 +77,28 @@ export async function GET(request: NextRequest) {
         return new NextResponse(`Region ${region} not found`, { status: 404 });
       }
 
+      // Date Range boundary filters for calendar
+      const startYear = startDate ? parseInt(startDate.split("-")[0], 10) : 2000;
+      const startMonth = startDate ? parseInt(startDate.split("-")[1], 10) : 1;
+      const endYear = endDate ? parseInt(endDate.split("-")[0], 10) : 2026;
+      const endMonth = endDate ? parseInt(endDate.split("-")[1], 10) : 12;
+
       const rows: string[] = [];
       // Research Metadata headers
-      rows.push(`# NASA FIRMS 26-Year Harmonized Burning Activity Calendar (2000-2026)`);
-      rows.push(`# Region: ${region}`);
+      rows.push(`# =========================================================================`);
+      rows.push(`# NASA FIRMS 26-Year Harmonized Burning Activity Calendar Matrix (2000-2026)`);
+      rows.push(`# Bioclimatic Region: ${region}`);
+      rows.push(`# Date Range Filter: ${startDate || "2000-01-01"} to ${endDate || "2026-11-09"}`);
+      rows.push(`# Sensor Calibration: MODIS Terra/Aqua & VIIRS S-NPP/JPSS Continuous Model`);
       rows.push(`# Overlap Continuity Scaling Factor: ${regionData.overlap_continuity_factor}x`);
-      rows.push(`# Climatological Baseline: 2000-2025 (Terra/Aqua MODIS & S-NPP/JPSS VIIRS)`);
-      rows.push(`# Export Timestamp: ${new Date().toISOString()}`);
+      rows.push(`# Climatological Baseline Period: 2000-2025 (Historical Median & IQR)`);
+      rows.push(`# Export Timestamp (UTC): ${new Date().toISOString()}`);
+      rows.push(`# =========================================================================`);
       rows.push(
         [
           "year",
           "month",
+          "month_name",
           "raw_modis_count",
           "raw_viirs_count",
           "harmonized_fire_count",
@@ -95,11 +114,18 @@ export async function GET(request: NextRequest) {
       );
 
       for (const yearRec of regionData.calendar) {
+        if (yearRec.year < startYear || yearRec.year > endYear) continue;
+
         for (const m of yearRec.months) {
+          // Check start/end month boundary
+          if (yearRec.year === startYear && m.month < startMonth) continue;
+          if (yearRec.year === endYear && m.month > endMonth) continue;
+
           rows.push(
             [
               yearRec.year,
               m.month,
+              `"${MONTH_NAMES[m.month - 1] || m.month}"`,
               m.modis_count,
               m.viirs_count,
               m.harmonized_count,
@@ -117,28 +143,62 @@ export async function GET(request: NextRequest) {
       }
 
       const csvContent = rows.join("\r\n");
+      const safeRegion = region.replace(/[^a-zA-Z0-9_-]/g, "_");
       return new NextResponse(csvContent, {
         status: 200,
         headers: {
           "Content-Type": "text/csv; charset=utf-8",
-          "Content-Disposition": `attachment; filename="burning_activity_calendar_2000_2026_${region}.csv"`,
+          "Content-Disposition": `attachment; filename="burning_calendar_${safeRegion}_${startYear}_${endYear}.csv"`,
         },
       });
     }
 
-    // Default: Export Hotspots CSV
-    const hotspotPath = path.join(process.cwd(), "public", "data", "hotspots", `${region}.json`);
+    // -------------------------------------------------------------
+    // EXPORT TYPE 2: Point-Level Harmonized Hotspots CSV
+    // -------------------------------------------------------------
+    // Find matching regional dataset file
+    const dataDir = path.join(process.cwd(), "public", "data", "hotspots");
+    let targetFileName = `${region}.json`;
+    if (!fs.existsSync(path.join(dataDir, targetFileName))) {
+      const qClean = region.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const files = fs.readdirSync(dataDir);
+      for (const f of files) {
+        if (f.toLowerCase().replace(/[^a-z0-9]/g, "") === `${qClean}json`) {
+          targetFileName = f;
+          break;
+        }
+      }
+    }
+
+    const hotspotPath = path.join(dataDir, targetFileName);
     let points: any[] = [];
     if (fs.existsSync(hotspotPath)) {
       points = JSON.parse(fs.readFileSync(hotspotPath, "utf-8"));
     }
 
+    // Apply ALL User Filter Criteria
     const filtered = points.filter((pt) => {
+      // 1. Date Range Filter
       if (startDate && pt.date < startDate) return false;
       if (endDate && pt.date > endDate) return false;
-      if (sensor !== "all" && pt.sensor !== sensor) return false;
-      if (minFrp > 0 && (pt.harmonized_frp || pt.frp) < minFrp) return false;
-      if (daynight !== "all" && pt.daynight !== daynight) return false;
+
+      // 2. Sensor Filter (MODIS, VIIRS, or all)
+      if (sensor !== "all" && pt.sensor?.toUpperCase() !== sensor.toUpperCase()) {
+        return false;
+      }
+
+      // 3. Diurnal Phase Filter ("D" = Day, "N" = Night, or "all")
+      if (daynight !== "all" && pt.daynight?.toUpperCase() !== daynight.toUpperCase()) {
+        return false;
+      }
+
+      // 4. Minimum FRP Filter
+      const ptFrp = Number(pt.harmonized_frp ?? pt.frp ?? 0);
+      if (minFrp > 0 && ptFrp < minFrp) {
+        return false;
+      }
+
+      // 5. Spatial Bounding Box Filter
       if (bbox) {
         if (
           pt.lon < bbox.minLon ||
@@ -149,15 +209,53 @@ export async function GET(request: NextRequest) {
           return false;
         }
       }
+
+      // 6. Spatial Circle AOI Filter
       if (remarkCenter && radiusKm > 0) {
         const dist = haversineDistanceKm(remarkCenter.lat, remarkCenter.lon, pt.lat, pt.lon);
         if (dist > radiusKm) return false;
       }
+
       return true;
     });
 
     const rows: string[] = [];
-    // 15-column schema specified in research paper
+    const diurnalPhaseLabel =
+      daynight === "D"
+        ? "Daytime Flaming (D)"
+        : daynight === "N"
+        ? "Nighttime Smoldering (N)"
+        : "All Phases (Day & Night)";
+
+    const sensorLabel =
+      sensor === "MODIS"
+        ? "MODIS Only (Terra/Aqua)"
+        : sensor === "VIIRS"
+        ? "VIIRS Only (S-NPP/NOAA-20/NOAA-21)"
+        : "All Sensors (Harmonized)";
+
+    const aoiLabel = bboxStr
+      ? `Custom BBox [${bboxStr}]`
+      : remarkCenter
+      ? `Custom Circle (${remarkCenter.lat}, ${remarkCenter.lon}, r=${radiusKm}km)`
+      : `Standard Bioclimatic Region (${region})`;
+
+    // NASA FIRMS Metadata Headers
+    rows.push(`# =========================================================================`);
+    rows.push(`# NASA FIRMS Harmonized Active Fire Hotspot Dataset`);
+    rows.push(`# Data Source: NASA Earthdata LANCE FIRMS`);
+    rows.push(`# Bioclimatic Region: ${region}`);
+    rows.push(`# Temporal Filter (Date Range): ${startDate || "2000-01-01"} to ${endDate || "2026-11-09"}`);
+    rows.push(`# Instrument Sensor Filter: ${sensorLabel}`);
+    rows.push(`# Diurnal Phase Filter: ${diurnalPhaseLabel}`);
+    rows.push(`# Minimum Radiative Power (FRP): >= ${minFrp} MW`);
+    rows.push(`# Spatial AOI Extent: ${aoiLabel}`);
+    rows.push(`# Total Filtered Hotspot Records: ${filtered.length}`);
+    rows.push(`# Harmonization Framework: 173-Month Multi-Decadal Continuity Baseline`);
+    rows.push(`# Export Generated UTC: ${new Date().toISOString()}`);
+    rows.push(`# =========================================================================`);
+
+    // 16-Column Detailed Schema
     rows.push(
       [
         "hotspot_id",
@@ -167,20 +265,26 @@ export async function GET(request: NextRequest) {
         "acq_time_utc",
         "sensor",
         "satellite",
+        "diurnal_phase",
+        "daynight_code",
         "frp_raw_mw",
         "frp_harmonized_mw",
         "brightness_kelvin",
-        "daynight",
         "confidence_level",
         "region",
-        "remark_flag",
-        "hotspot_type",
+        "spatial_aoi_flag",
+        "presumed_fire_nature",
       ].join(",")
     );
 
     filtered.forEach((pt, idx) => {
-      const id = `FIRMS-${pt.sensor}-${pt.date.replace(/-/g, "")}-${idx + 1}`;
-      const isRemarked = bbox || (remarkCenter && radiusKm > 0) ? "USER_REMARK_AOI" : "STANDARD_REGION";
+      const id = `FIRMS-${pt.sensor}-${pt.date.replace(/-/g, "")}-${String(idx + 1).padStart(5, "0")}`;
+      const isCustomAoi = bbox || (remarkCenter && radiusKm > 0) ? "USER_CUSTOM_AOI" : "STANDARD_REGION";
+      const phase = pt.daynight === "D" ? "Day (Flaming)" : "Night (Smoldering)";
+      const rawFrp = Number(pt.frp || 0).toFixed(2);
+      const harmFrp = Number(pt.harmonized_frp || pt.frp || 0).toFixed(2);
+      const bright = Number(pt.bright || 0).toFixed(1);
+
       rows.push(
         [
           id,
@@ -189,25 +293,31 @@ export async function GET(request: NextRequest) {
           pt.date,
           pt.time,
           pt.sensor,
-          pt.satellite || "N/A",
-          pt.frp,
-          pt.harmonized_frp,
-          pt.bright,
+          `"${pt.satellite || "N/A"}"`,
+          `"${phase}"`,
           pt.daynight,
-          pt.confidence,
-          region,
-          isRemarked,
+          rawFrp,
+          harmFrp,
+          bright,
+          `"${pt.confidence}"`,
+          `"${region}"`,
+          isCustomAoi,
           "presumed_vegetation_fire",
         ].join(",")
       );
     });
 
     const csvContent = rows.join("\r\n");
+    const safeRegion = region.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const safeStart = (startDate || "20000101").replace(/-/g, "");
+    const safeEnd = (endDate || "20261109").replace(/-/g, "");
+    const fileName = `firms_harmonized_${safeRegion}_${sensor}_phase-${daynight}_${safeStart}_to_${safeEnd}.csv`;
+
     return new NextResponse(csvContent, {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="firms_harmonized_hotspots_${region}_${Date.now()}.csv"`,
+        "Content-Disposition": `attachment; filename="${fileName}"`,
       },
     });
   } catch (error: any) {

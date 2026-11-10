@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,10 @@ import {
   IconFlame,
   IconMapPin,
   IconCheck,
+  IconSun,
+  IconMoon,
+  IconClock,
+  IconFilter,
   IconFileSpreadsheet,
 } from "@tabler/icons-react";
 
@@ -43,11 +47,29 @@ export function FireExportDialog({
   minFrpFilter,
   daynightFilter,
   totalHotspotsCount,
-  startDate,
-  endDate,
+  startDate = "2026-09-10",
+  endDate = "2026-11-09",
 }: FireExportDialogProps) {
   const [exportType, setExportType] = useState<"hotspots" | "calendar">("hotspots");
   const [isExporting, setIsExporting] = useState(false);
+
+  // Local filter states allowing verification and adjustment
+  const [activeSensor, setActiveSensor] = useState<string>(sensorFilter);
+  const [activeDaynight, setActiveDaynight] = useState<string>(daynightFilter);
+  const [activeStartDate, setActiveStartDate] = useState<string>(startDate);
+  const [activeEndDate, setActiveEndDate] = useState<string>(endDate);
+  const [activeMinFrp, setActiveMinFrp] = useState<number>(minFrpFilter);
+
+  // Synchronize when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setActiveSensor(sensorFilter);
+      setActiveDaynight(daynightFilter);
+      setActiveStartDate(startDate);
+      setActiveEndDate(endDate);
+      setActiveMinFrp(minFrpFilter);
+    }
+  }, [isOpen, sensorFilter, daynightFilter, startDate, endDate, minFrpFilter]);
 
   const handleDownload = () => {
     setIsExporting(true);
@@ -55,16 +77,17 @@ export function FireExportDialog({
     const params = new URLSearchParams();
     params.set("type", exportType);
     params.set("region", selectedRegion);
-    params.set("sensor", sensorFilter);
-    if (minFrpFilter > 0) params.set("minFrp", minFrpFilter.toString());
-    if (daynightFilter !== "all") params.set("daynight", daynightFilter);
-    if (startDate) params.set("startDate", startDate);
-    if (endDate) params.set("endDate", endDate);
+    params.set("sensor", activeSensor);
+    if (activeMinFrp > 0) params.set("minFrp", activeMinFrp.toString());
+    if (activeDaynight !== "all") params.set("daynight", activeDaynight);
+    if (activeStartDate) params.set("startDate", activeStartDate);
+    if (activeEndDate) params.set("endDate", activeEndDate);
 
     if (remarkArea.type === "bbox" && remarkArea.bbox) {
       params.set("bbox", remarkArea.bbox.join(","));
     } else if (remarkArea.type === "circle" && remarkArea.circle) {
-      params.set("remarkCenter", `${remarkArea.circle.lat},${remarkArea.circle.lon}`);
+      const lon = remarkArea.circle.lon ?? remarkArea.circle.lng ?? 0;
+      params.set("remarkCenter", `${remarkArea.circle.lat},${lon}`);
       params.set("radiusKm", remarkArea.circle.radiusKm.toString());
     }
 
@@ -81,97 +104,213 @@ export function FireExportDialog({
     setTimeout(() => {
       setIsExporting(false);
       onClose();
-    }, 1000);
+    }, 1200);
   };
+
+  const diurnalLabel =
+    activeDaynight === "D"
+      ? "Day Flaming (D)"
+      : activeDaynight === "N"
+      ? "Night Smoldering (N)"
+      : "Day & Night (All)";
+
+  const sensorLabel =
+    activeSensor === "MODIS"
+      ? "MODIS Only (Terra/Aqua)"
+      : activeSensor === "VIIRS"
+      ? "VIIRS Only (S-NPP/JPSS)"
+      : "All Sensors (Harmonized)";
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-slate-100">
+      <DialogContent className="sm:max-w-lg bg-slate-900 border-slate-700 text-slate-100 max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2 text-emerald-400 font-mono text-xs uppercase tracking-wider">
             <IconDownload className="size-4" />
             <span>NASA FIRMS Data Export</span>
           </div>
           <DialogTitle className="text-base font-bold text-white">
-            Export Harmonized Fire Data to CSV
+            Export Harmonized Fire Dataset (CSV)
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-400">
-            Select export format based on your analytical requirements. Data is calibrated using the 173-month MODIS-VIIRS continuity scaling framework.
+            Export NASA Earth observation records strictly respecting all your active temporal, sensor, diurnal phase, and spatial filters.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3 py-2">
-          {/* Option 1: Point-Level Hotspots */}
-          <button
-            type="button"
-            onClick={() => setExportType("hotspots")}
-            className={`p-3 rounded-lg border text-left transition-all flex items-start gap-3 ${
-              exportType === "hotspots"
-                ? "border-emerald-500 bg-emerald-950/20 ring-1 ring-emerald-500"
-                : "border-slate-800 bg-slate-950/60 hover:border-slate-700"
-            }`}
-          >
-            <div className="size-8 rounded-md bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 mt-0.5">
-              <IconFlame className="size-4 text-amber-400" />
-            </div>
-            <div className="space-y-1 flex-1 font-sans">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-xs text-white">
-                  Point-Level Harmonized Hotspots
-                </span>
-                <Badge variant="outline" className="text-[10px] font-mono text-emerald-400 border-emerald-500/30">
-                  15-Column Schema
+          {/* Format Selection Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {/* Option 1: Point-Level Hotspots */}
+            <button
+              type="button"
+              onClick={() => setExportType("hotspots")}
+              className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between gap-2 cursor-pointer ${
+                exportType === "hotspots"
+                  ? "border-emerald-500 bg-emerald-950/30 ring-2 ring-emerald-500/70"
+                  : "border-slate-800 bg-slate-950/60 hover:border-slate-700"
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="size-7 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <IconFlame className="size-4" />
+                </div>
+                <Badge
+                  variant="outline"
+                  className={`text-[9px] font-mono ${
+                    exportType === "hotspots"
+                      ? "text-emerald-300 border-emerald-400 bg-emerald-500/10 font-bold"
+                      : "text-slate-400 border-slate-700"
+                  }`}
+                >
+                  16 Columns
                 </Badge>
               </div>
-              <p className="text-[11px] text-slate-400">
-                Exports every active fire detection with coordinates, raw & harmonized FRP (MW), brightness temp, confidence, sensor, satellite, and remark flags.
-              </p>
-              <div className="text-[10px] font-mono text-slate-500 pt-1">
-                Matching filter: {totalHotspotsCount.toLocaleString()} points
-              </div>
-            </div>
-          </button>
-
-          {/* Option 2: 26-Year Monthly Calendar Matrix */}
-          <button
-            type="button"
-            onClick={() => setExportType("calendar")}
-            className={`p-3 rounded-lg border text-left transition-all flex items-start gap-3 ${
-              exportType === "calendar"
-                ? "border-emerald-500 bg-emerald-950/20 ring-1 ring-emerald-500"
-                : "border-slate-800 bg-slate-950/60 hover:border-slate-700"
-            }`}
-          >
-            <div className="size-8 rounded-md bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0 mt-0.5">
-              <IconCalendar className="size-4 text-cyan-400" />
-            </div>
-            <div className="space-y-1 flex-1 font-sans">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-xs text-white">
-                  26-Year Calendar & Anomaly Matrix
+              <div>
+                <span className="font-bold text-xs text-white block">
+                  Point-Level Hotspots
                 </span>
-                <Badge variant="outline" className="text-[10px] font-mono text-cyan-400 border-cyan-500/30">
+                <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-2">
+                  Every detection with Lat/Lon, raw & harmonized FRP, brightness, sensor & diurnal phase.
+                </p>
+              </div>
+            </button>
+
+            {/* Option 2: 26-Year Calendar Matrix */}
+            <button
+              type="button"
+              onClick={() => setExportType("calendar")}
+              className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between gap-2 cursor-pointer ${
+                exportType === "calendar"
+                  ? "border-emerald-500 bg-emerald-950/30 ring-2 ring-emerald-500/70"
+                  : "border-slate-800 bg-slate-950/60 hover:border-slate-700"
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="size-7 rounded-lg bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                  <IconCalendar className="size-4" />
+                </div>
+                <Badge
+                  variant="outline"
+                  className={`text-[9px] font-mono ${
+                    exportType === "calendar"
+                      ? "text-cyan-300 border-cyan-400 bg-cyan-500/10 font-bold"
+                      : "text-slate-400 border-slate-700"
+                  }`}
+                >
                   2000–2026
                 </Badge>
               </div>
-              <p className="text-[11px] text-slate-400">
-                Exports monthly time series with raw MODIS, raw VIIRS, harmonized counts, Active Fire Hex-Days, historical medians, IQRs, and robust Z-score departures.
-              </p>
-            </div>
-          </button>
+              <div>
+                <span className="font-bold text-xs text-white block">
+                  Calendar & Anomaly Matrix
+                </span>
+                <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-2">
+                  Monthly time series with historical medians, IQRs, robust Z-scores & climatology.
+                </p>
+              </div>
+            </button>
+          </div>
 
-          {/* Active Filters Summary */}
-          <div className="bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-[11px] font-mono text-slate-400 space-y-1">
-            <div className="text-slate-300 font-semibold mb-1">Export Metadata:</div>
-            <div>• Region: <span className="text-white">{selectedRegion}</span></div>
-            <div>• Sensors: <span className="text-white">{sensorFilter}</span></div>
-            {remarkArea.type !== "none" && (
-              <div>• Remark AOI: <span className="text-cyan-400">{remarkArea.name || "Active Remark Area"}</span></div>
-            )}
+          {/* Active Filter Criteria Panel */}
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2.5">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5">
+              <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <IconFilter className="size-3.5 text-emerald-400" />
+                <span>Filters Applied to Export:</span>
+              </span>
+              <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono font-bold">
+                {totalHotspotsCount.toLocaleString()} Points Matched
+              </Badge>
+            </div>
+
+            {/* Filter 1: Date Range */}
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-slate-400 flex items-center gap-1.5">
+                <IconCalendar className="size-3.5 text-amber-500" />
+                <span>Date Range:</span>
+              </span>
+              <span className="text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                {activeStartDate} → {activeEndDate}
+              </span>
+            </div>
+
+            {/* Filter 2: Sensor Origin */}
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-slate-400 flex items-center gap-1.5">
+                <IconFlame className="size-3.5 text-rose-500" />
+                <span>Sensors:</span>
+              </span>
+              <div className="flex items-center gap-1">
+                {(["all", "MODIS", "VIIRS"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setActiveSensor(s)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono cursor-pointer transition-colors ${
+                      activeSensor === s
+                        ? "bg-amber-600 text-white font-bold"
+                        : "bg-slate-900 text-slate-400 hover:text-white border border-slate-800"
+                    }`}
+                  >
+                    {s === "all" ? "All" : s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Filter 3: Diurnal Phase */}
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-slate-400 flex items-center gap-1.5">
+                <IconSun className="size-3.5 text-amber-400" />
+                <span>Diurnal Phase:</span>
+              </span>
+              <div className="flex items-center gap-1">
+                {[
+                  { id: "all", label: "Day & Night" },
+                  { id: "D", label: "Day (D)" },
+                  { id: "N", label: "Night (N)" },
+                ].map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setActiveDaynight(id)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono cursor-pointer transition-colors ${
+                      activeDaynight === id
+                        ? "bg-amber-600 text-white font-bold"
+                        : "bg-slate-900 text-slate-400 hover:text-white border border-slate-800"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Filter 4: Minimum FRP Threshold */}
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-slate-400 flex items-center gap-1.5">
+                <IconFlame className="size-3.5 text-amber-500" />
+                <span>Minimum FRP:</span>
+              </span>
+              <span className="text-slate-200 font-bold">
+                {activeMinFrp > 0 ? `≥ ${activeMinFrp} MW` : "0 MW (All Intensities)"}
+              </span>
+            </div>
+
+            {/* Filter 5: Spatial Region / AOI */}
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-slate-400 flex items-center gap-1.5">
+                <IconMapPin className="size-3.5 text-cyan-400" />
+                <span>Spatial Scope:</span>
+              </span>
+              <span className="text-cyan-300 font-semibold truncate max-w-[200px]">
+                {remarkArea.type !== "none" ? (remarkArea.name || "Custom Drawn AOI") : selectedRegion}
+              </span>
+            </div>
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-slate-800/80">
           <Button
             type="button"
             variant="ghost"
@@ -184,10 +323,10 @@ export function FireExportDialog({
             type="button"
             onClick={handleDownload}
             disabled={isExporting}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 font-semibold shadow-lg shadow-emerald-950/50 cursor-pointer"
           >
             <IconDownload className="size-4" />
-            {isExporting ? "Generating CSV..." : "Download CSV File"}
+            {isExporting ? "Generating Filtered CSV..." : "Download Filtered CSV"}
           </Button>
         </DialogFooter>
       </DialogContent>
