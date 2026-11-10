@@ -11,6 +11,7 @@ import { REGION_PRESETS, MONTH_NAMES } from "./constants";
 import { FireCalendar } from "./fire-calendar";
 import { FireAnalytics } from "./fire-analytics";
 import { FireComparison } from "./fire-comparison";
+import { FireDateRangeCalendar } from "./fire-date-range-calendar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +32,8 @@ import {
   IconMoon,
   IconClock,
   IconCheck,
+  IconChevronDown,
+  IconChevronUp,
 } from "@tabler/icons-react";
 
 interface FireAnalysisPageProps {
@@ -86,6 +89,7 @@ export function FireAnalysisPage({
   onChangeMinFrpFilter,
 }: FireAnalysisPageProps) {
   const [activeAnalysisSection, setActiveAnalysisSection] = useState<"trends" | "calendar" | "compare" | "regimes">("trends");
+  const [isDateCalendarOpen, setIsDateCalendarOpen] = useState<boolean>(false);
 
   const currentPreset = REGION_PRESETS.find((r) => r.id === selectedRegion) || REGION_PRESETS[0];
 
@@ -236,120 +240,161 @@ export function FireAnalysisPage({
             </div>
           </div>
 
-          {/* Controls Strip 2: Synchronized Shared Filters (Date Window, Sensor, Diurnal Phase) */}
-          <div className="mt-3 pt-3 border-t border-slate-800/60 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-            {/* Observation Date Window Presets */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                <span className="flex items-center gap-1">
-                  <IconCalendar className="size-3 text-amber-500" />
-                  <span>Observation Window:</span>
-                </span>
-                <span className="text-amber-400 font-bold">
-                  {startDate} → {endDate}
-                </span>
+          {/* Controls Strip 2: Observation Window with Calendar & Shared Filters */}
+          <div className="mt-3 pt-3 border-t border-slate-800/60 space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              {/* 1. Observation Date Window with Interactive Calendar Toggle */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                  <span className="flex items-center gap-1 font-semibold text-slate-300">
+                    <IconCalendar className="size-3.5 text-amber-500" />
+                    <span>Observation Window:</span>
+                  </span>
+                  <div className="flex items-center gap-1 font-bold">
+                    <span className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                      {startDate}
+                    </span>
+                    <span className="text-slate-500">→</span>
+                    <span className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                      {endDate}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsDateCalendarOpen((prev) => !prev)}
+                    className={`h-7 px-2.5 text-xs font-mono font-semibold gap-1.5 cursor-pointer transition-all ${
+                      isDateCalendarOpen
+                        ? "bg-amber-600 text-white border-amber-500 shadow-sm"
+                        : "bg-slate-950 border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800"
+                    }`}
+                  >
+                    <IconCalendar className="size-3.5 text-amber-400" />
+                    <span>{isDateCalendarOpen ? "Hide Calendar" : "Select Date Range (Calendar)"}</span>
+                    {isDateCalendarOpen ? (
+                      <IconChevronUp className="size-3 text-white" />
+                    ) : (
+                      <IconChevronDown className="size-3 text-slate-400" />
+                    )}
+                  </Button>
+
+                  {/* Quick Preset Buttons */}
+                  {[
+                    { label: "7d", s: "2026-11-02", e: "2026-11-09", title: "Last 7 Days" },
+                    { label: "30d", s: "2026-10-10", e: "2026-11-09", title: "Last 30 Days" },
+                    { label: "Oct '26", s: "2026-10-01", e: "2026-10-31", title: "Oct 2026 Peak" },
+                    { label: "Full NRT", s: "2026-09-10", e: "2026-11-09", title: "Full 2026 NRT" },
+                    { label: "All", s: "2000-01-01", e: "2026-11-09", title: "2000–2026" },
+                  ].map((preset) => {
+                    const isActive = startDate === preset.s && endDate === preset.e;
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        title={preset.title}
+                        onClick={() => onChangeDateRange?.(preset.s, preset.e)}
+                        className={`h-7 px-2 rounded text-[11px] font-mono font-semibold transition-all cursor-pointer ${
+                          isActive
+                            ? "bg-amber-500 text-slate-950 font-bold border border-amber-300 shadow-sm"
+                            : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-900"
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="flex flex-wrap items-center gap-1">
-                {[
-                  { label: "7 Days", s: "2026-11-02", e: "2026-11-09" },
-                  { label: "30 Days", s: "2026-10-10", e: "2026-11-09" },
-                  { label: "Oct 2026", s: "2026-10-01", e: "2026-10-31" },
-                  { label: "Full NRT", s: "2026-09-10", e: "2026-11-09" },
-                  { label: "2000–2026", s: "2000-01-01", e: "2026-11-09" },
-                ].map((preset) => {
-                  const isActive = startDate === preset.s && endDate === preset.e;
-                  return (
+
+              {/* 2. Satellite Sensor Stream */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span className="font-semibold text-slate-300">Satellite Sensor Stream:</span>
+                  <span className="text-amber-400 font-mono font-bold">
+                    {sensorFilter === "all" ? "All Sensors" : sensorFilter}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  {(["all", "MODIS", "VIIRS"] as const).map((s) => (
                     <button
-                      key={preset.label}
+                      key={s}
                       type="button"
-                      onClick={() => onChangeDateRange?.(preset.s, preset.e)}
-                      className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold transition-all cursor-pointer ${
-                        isActive
-                          ? "bg-amber-500 text-slate-950 font-bold border border-amber-300 shadow-sm"
+                      onClick={() => onChangeSensorFilter?.(s)}
+                      className={`h-7 rounded text-xs font-mono font-medium transition-all cursor-pointer ${
+                        sensorFilter === s
+                          ? "bg-amber-600 text-white font-bold shadow-sm"
                           : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-900"
                       }`}
                     >
-                      {preset.label}
+                      {s === "all" ? "All Sensors" : s}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Diurnal Phase */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span className="font-semibold text-slate-300">Diurnal Phase:</span>
+                  <span className="text-amber-400 font-mono font-bold">
+                    {daynightFilter === "all" ? "Day & Night" : daynightFilter === "D" ? "Day Flaming" : "Night Smoldering"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  {[
+                    { id: "all", label: "All Phases", icon: null },
+                    { id: "D", label: "Day", icon: IconSun },
+                    { id: "N", label: "Night", icon: IconMoon },
+                  ].map(({ id, label, icon: Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => onChangeDaynightFilter?.(id as any)}
+                      className={`h-7 rounded text-xs font-mono font-medium flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                        daynightFilter === id
+                          ? "bg-amber-600 text-white font-bold shadow-sm"
+                          : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-900"
+                      }`}
+                    >
+                      {Icon && <Icon className="size-3" />}
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            {/* Satellite Sensor Stream */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span>Satellite Sensor Stream:</span>
-                <span className="text-amber-400 font-mono font-bold">
-                  {sensorFilter === "all" ? "All Sensors" : sensorFilter}
-                </span>
+            {/* Embedded Interactive Calendar Dropdown / Panel */}
+            {isDateCalendarOpen && (
+              <div className="pt-3 border-t border-slate-800/80 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="max-w-md bg-slate-950/90 border border-slate-800 rounded-xl p-2 shadow-2xl">
+                  <div className="flex items-center justify-between px-2 pb-1.5 mb-1.5 border-b border-slate-800/80 text-xs">
+                    <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                      <IconCalendar className="size-3.5 text-amber-500" />
+                      <span>Select Date Range</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsDateCalendarOpen(false)}
+                      className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+                    >
+                      Done / Close
+                    </button>
+                  </div>
+                  <FireDateRangeCalendar
+                    startDate={startDate}
+                    endDate={endDate}
+                    onChangeDateRange={(start, end) => onChangeDateRange?.(start, end)}
+                    minDate="2000-01-01"
+                    maxDate="2026-11-09"
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-3 gap-1">
-                {(["all", "MODIS", "VIIRS"] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => onChangeSensorFilter?.(s)}
-                    className={`h-6 rounded text-[11px] font-mono font-medium transition-all cursor-pointer ${
-                      sensorFilter === s
-                        ? "bg-amber-600 text-white font-bold shadow-sm"
-                        : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-900"
-                    }`}
-                  >
-                    {s === "all" ? "All Sensors" : s}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Diurnal Phase */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span>Diurnal Phase:</span>
-                <span className="text-amber-400 font-mono font-bold">
-                  {daynightFilter === "all" ? "Day & Night" : daynightFilter === "D" ? "Day Flaming" : "Night Smoldering"}
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-1">
-                {[
-                  { id: "all", label: "All Phases", icon: null },
-                  { id: "D", label: "Day", icon: IconSun },
-                  { id: "N", label: "Night", icon: IconMoon },
-                ].map(({ id, label, icon: Icon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => onChangeDaynightFilter?.(id as any)}
-                    className={`h-6 rounded text-[11px] font-mono font-medium flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                      daynightFilter === id
-                        ? "bg-amber-600 text-white font-bold shadow-sm"
-                        : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-900"
-                    }`}
-                  >
-                    {Icon && <Icon className="size-2.5" />}
-                    <span>{label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Synchronized Status Pill */}
-          <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
-            <div className="flex items-center gap-1.5 text-slate-400">
-              <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-emerald-400 font-semibold">Standardized Parameters (Live Synced with Map View):</span>
-              <span className="text-slate-300">
-                {currentPreset.name} • {harmonizationMode} • {viewMetric} • {colorRamp} ramp • {sensorFilter} • {daynightFilter} phase
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={onSwitchToMap}
-              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 hover:underline cursor-pointer"
-            >
-              <IconMap className="size-3" /> Inspect on Live Map →
-            </button>
+            )}
           </div>
         </div>
 

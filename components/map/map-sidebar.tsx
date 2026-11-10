@@ -21,6 +21,8 @@ import {
   IconSparkles,
   IconChartBar,
   IconRotate,
+  IconChevronDown,
+  IconChevronUp,
 } from "@tabler/icons-react";
 import { REGION_PRESETS, MONTH_NAMES } from "@/components/fire/constants";
 import { ColorRampType, HarmonizationMode, ViewMetric, RemarkArea } from "@/components/fire/types";
@@ -99,6 +101,7 @@ export function MapSidebar({
   activeLayerId,
   onSelectLayer,
 }: MapSidebarProps) {
+  const [isDateRangeExpanded, setIsDateRangeExpanded] = useState<boolean>(true);
   const currentPreset = REGION_PRESETS.find((r) => r.id === selectedRegion) || REGION_PRESETS[0];
 
   if (!isOpen) return null;
@@ -128,7 +131,7 @@ export function MapSidebar({
           variant="ghost"
           size="icon-xs"
           onClick={onClose}
-          className="rounded-full text-slate-400 hover:text-white hover:bg-slate-800"
+          className="rounded-full text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
         >
           <IconX className="size-4" />
         </Button>
@@ -138,10 +141,10 @@ export function MapSidebar({
       <Tabs defaultValue="filters" className="flex-1 flex flex-col overflow-hidden">
         <div className="px-3 pt-2 border-b border-slate-800/80 bg-slate-900/20">
           <TabsList className="grid grid-cols-2 w-full h-8 p-0.5 bg-slate-900 border border-slate-800">
-            <TabsTrigger value="filters" className="text-xs gap-1.5 font-medium data-[state=active]:bg-amber-600 data-[state=active]:text-white">
+            <TabsTrigger value="filters" className="text-xs gap-1.5 font-medium data-[state=active]:bg-amber-600 data-[state=active]:text-white cursor-pointer">
               <IconFlame className="size-3.5" /> Fire Filters & Date
             </TabsTrigger>
-            <TabsTrigger value="layers" className="text-xs gap-1.5 font-medium data-[state=active]:bg-slate-800 data-[state=active]:text-white">
+            <TabsTrigger value="layers" className="text-xs gap-1.5 font-medium data-[state=active]:bg-slate-800 data-[state=active]:text-white cursor-pointer">
               <IconLayersSubtract className="size-3.5" /> Map Layers
             </TabsTrigger>
           </TabsList>
@@ -149,84 +152,77 @@ export function MapSidebar({
 
         {/* 1. Fire Filters & Date Range Tab */}
         <TabsContent value="filters" className="flex-1 overflow-y-auto p-3.5 space-y-3.5 m-0 focus-visible:outline-none custom-scrollbar">
-          {/* Active Calibration & Synchronization Ribbon */}
-          <div className="px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] font-mono space-y-1.5">
-            <div className="text-[10px] text-slate-400 flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="font-semibold text-slate-300">Synchronized Parameters</span>
+          {/* Selected Historical Cell Indicator (from Fire Analysis) */}
+          {selectedYear && selectedMonth && (
+            <div className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs font-mono">
+              <span className="text-amber-300 flex items-center gap-1">
+                <IconCalendar className="size-3 text-amber-400" />
+                <span>Inspecting: <strong>{MONTH_NAMES[(selectedMonth || 1) - 1]} {selectedYear}</strong></span>
               </span>
-              <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
-                Live Synced with Analysis
-              </span>
+              {onResetSelectedPeriod && (
+                <button
+                  type="button"
+                  onClick={onResetSelectedPeriod}
+                  className="text-[10px] text-amber-400/80 hover:text-amber-300 flex items-center gap-0.5 cursor-pointer underline"
+                >
+                  <IconRotate className="size-2.5" /> Reset
+                </button>
+              )}
             </div>
-            <div className="flex flex-wrap items-center gap-1 text-[10px]">
-              <Badge variant="outline" className="border-slate-700 bg-slate-950 text-slate-300 px-1.5 py-0 font-mono">
-                {currentPreset.name}
-              </Badge>
-              <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300 px-1.5 py-0 font-mono">
-                {harmonizationMode === "overlap_scaled"
-                  ? "Overlap Scaled"
-                  : harmonizationMode === "active_fire_hex_days"
-                  ? "Hex-Days"
-                  : harmonizationMode === "vza_frp"
-                  ? "VZA-FRP"
-                  : "MODIS-Equiv"}
-              </Badge>
-              <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300 px-1.5 py-0 font-mono">
-                {viewMetric === "harmonized_count"
-                  ? "Hotspots Count"
-                  : viewMetric === "active_fire_hex_days"
-                  ? "Hex-Days"
-                  : viewMetric === "harmonized_frp_mw"
-                  ? "FRP MW"
-                  : "Anomaly"}
-              </Badge>
-              <Badge variant="outline" className="border-rose-500/30 bg-rose-500/10 text-rose-300 px-1.5 py-0 font-mono capitalize">
-                {colorRamp} Ramp
-              </Badge>
+          )}
+
+          {/* Section A: Date Range Filter (Collapsible) */}
+          <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/50 p-2.5 transition-all">
+            <div
+              onClick={() => setIsDateRangeExpanded((prev) => !prev)}
+              className="flex items-center justify-between cursor-pointer select-none group"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setIsDateRangeExpanded((prev) => !prev);
+                }
+              }}
+            >
+              <div className="flex items-center gap-1.5">
+                <IconCalendar className="size-3.5 text-amber-500" />
+                <span className="text-xs font-semibold text-slate-200 group-hover:text-amber-400 transition-colors">
+                  Filter Date Range
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 text-[10px] font-mono font-bold">
+                  <span className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                    {startDate}
+                  </span>
+                  <span className="text-slate-500">→</span>
+                  <span className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                    {endDate}
+                  </span>
+                </div>
+                <div className="size-6 rounded-md hover:bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-white transition-colors">
+                  {isDateRangeExpanded ? (
+                    <IconChevronUp className="size-3.5" />
+                  ) : (
+                    <IconChevronDown className="size-3.5" />
+                  )}
+                </div>
+              </div>
             </div>
 
-            {/* Selected Historical Cell Indicator (from Fire Analysis) */}
-            {selectedYear && selectedMonth && (
-              <div className="pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
-                <span className="text-amber-300 flex items-center gap-1">
-                  <IconCalendar className="size-3 text-amber-400" />
-                  <span>Inspecting: <strong>{MONTH_NAMES[(selectedMonth || 1) - 1]} {selectedYear}</strong></span>
-                </span>
-                {onResetSelectedPeriod && (
-                  <button
-                    type="button"
-                    onClick={onResetSelectedPeriod}
-                    className="text-[10px] text-slate-400 hover:text-amber-400 flex items-center gap-0.5 cursor-pointer"
-                  >
-                    <IconRotate className="size-2.5" /> Reset
-                  </button>
-                )}
+            {/* Collapsible Calendar Body */}
+            {isDateRangeExpanded && (
+              <div className="pt-2 border-t border-slate-800/80 animate-in fade-in slide-in-from-top-1 duration-150">
+                <FireDateRangeCalendar
+                  startDate={startDate}
+                  endDate={endDate}
+                  onChangeDateRange={onChangeDateRange}
+                  minDate="2000-01-01"
+                  maxDate="2026-11-09"
+                />
               </div>
             )}
-          </div>
-
-          {/* Section A: Date Range Filter with Interactive Calendar */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <IconCalendar className="size-3.5 text-amber-500" />
-                <span>Filter Date Range</span>
-              </label>
-              <span className="text-[10px] text-slate-400 font-mono">
-                Observation Window
-              </span>
-            </div>
-
-            {/* Embedded Interactive Calendar Date Range Component */}
-            <FireDateRangeCalendar
-              startDate={startDate}
-              endDate={endDate}
-              onChangeDateRange={onChangeDateRange}
-              minDate="2000-01-01"
-              maxDate="2026-11-09"
-            />
           </div>
 
           {/* Section B: Target Bio-Climatic Regime */}
