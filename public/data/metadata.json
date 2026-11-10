@@ -1,0 +1,46 @@
+{
+  "regions": [
+    "Global",
+    "Alaska",
+    "Australia_NewZealand",
+    "Canada",
+    "Central_America",
+    "Europe",
+    "Northern_and_Central_Africa",
+    "Russia_Asia",
+    "SouthEast_Asia",
+    "Southern_Africa",
+    "South_America",
+    "South_Asia",
+    "USA_contiguous_and_Hawaii"
+  ],
+  "continuity_ratios": {
+    "Global": 7.8,
+    "South_America": 10.8,
+    "SouthEast_Asia": 8.6,
+    "Canada": 6.2,
+    "Russia_Asia": 6.8,
+    "USA_contiguous_and_Hawaii": 6.9,
+    "Australia_NewZealand": 7.9,
+    "Europe": 7.1,
+    "Northern_and_Central_Africa": 5.8,
+    "Southern_Africa": 5.6,
+    "Central_America": 8.2,
+    "South_Asia": 7.4,
+    "Alaska": 6.1
+  },
+  "year_range": [
+    2000,
+    2026
+  ],
+  "date_range_nrt": [
+    "2026-09-10",
+    "2026-11-09"
+  ],
+  "sensors": [
+    "MODIS (Terra/Aqua)",
+    "VIIRS (Suomi-NPP)",
+    "VIIRS (NOAA-20)",
+    "VIIRS (NOAA-21)"
+  ]
+}

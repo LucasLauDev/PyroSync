@@ -1,0 +1,88 @@
+1. Data Requirements
+- Integrate active fire hotspot data from MODIS and VIIRS satellites.
+- Use NASA Earthdata FIRMS as a potential source of satellite hotspot data.
+- Include historical MODIS observations from the early 2000s to the present.
+- Incorporate VIIRS observations to provide continuity and more detailed hotspot information.
+- Include recent hotspot data to support updated fire activity monitoring.
+- Store or process hotspot records with relevant information, such as:
+  - Geographic coordinates (latitude and longitude).
+  - Detection date and time.
+  - Hotspot or fire detection information.
+  - Sensor or satellite origin (MODIS or VIIRS).
+- Support historical and recent hotspot data within a consistent time series.
+2. MODIS and VIIRS Data Harmonization
+- Develop a harmonization process to integrate MODIS and VIIRS hotspot records.
+- Account for differences between the two satellite sensors, including:
+  - Spatial resolution.
+  - Detection sensitivity.
+  - Observation schedules and frequency.
+- Produce a consistent dataset that allows MODIS and VIIRS records to be analysed together.
+- Ensure that the sensor of origin does not affect the interpretation of overall fire activity patterns, trends, and anomalies.
+- Enable comparisons between historical and recent hotspot observations.
+3. Area of Interest (AOI) Selection
+- Allow users to select a specific geographical area for fire activity analysis.
+- Provide interactive geographical selection capabilities.
+- Support selecting an area through:
+  - Drawing an area or boundary directly on the map.
+  - Entering latitude and longitude coordinates.
+- Retrieve hotspot records within the selected area.
+- Allow users to analyse fire activity within their chosen geographical boundaries.
+4. Date Range Selection and Filtering
+- Allow users to select a specific date range for hotspot analysis.
+- Support historical analysis from the early 2000s to the present.
+- Filter hotspot records based on the selected:
+  - Geographical area.
+  - Start date.
+  - End date.
+- Update the calendar, statistics, and visualizations according to the selected area and date range.
+5. Burning Activity Calendar
+- Develop an interactive burning activity calendar based on harmonized hotspot data.
+- Display the number of detected hotspots for each month and year.
+- Cover historical records from the early 2000s to the present.
+- Use colour ramps to represent the number of detected hotspots.
+- Allow users to identify:
+  - Months with the highest fire activity.
+  - Years with the highest fire activity.
+  - Seasonal burning patterns.
+  - Periods with unusually high or low fire activity.
+  - Changes in burning activity over time.
+- Make it possible to compare fire activity across different months and years.
+- Ensure that the calendar updates according to the selected area and date range.
+6. Historical Analysis and Anomaly Detection
+- Provide historical fire activity comparisons for the selected area.
+- Calculate historical averages or medians of hotspot activity.
+- Identify unusual fire activity compared with historical patterns.
+- Compare the current month's hotspot activity against the historical median.
+- Highlight periods with significantly higher or lower hotspot activity.
+- Allow users to examine changes in fire frequency and intensity over time using hotspot observations.
+- Help users identify critical periods and potential changes in regional fire patterns.
+7. Data Analytics and Statistics
+- Provide key numerical indicators and statistics for the selected area.
+- Display the total number of detected hotspots.
+- Present fire activity across different months and years.
+- Identify the months and years with the highest hotspot counts.
+- Provide historical comparisons, including anomalies against multi-year averages or medians.
+- Present relevant analytical results through visualizations.
+- Ensure that all statistics are based on the selected geographical area and date range.
+8. Interactive Map
+- Provide an interactive map to display geographical information.
+- Allow users to explore their selected area of interest.
+- Support geographical area selection through map interaction.
+- Allow users to identify hotspot locations within the selected area.
+- Provide an option to enter latitude and longitude coordinates to define an area of interest.
+9. Data Export and Download
+- Allow users to download hotspot records from their selected search.
+- Provide hotspot data in CSV format.
+- Ensure downloaded records correspond to the selected geographical area and date range.
+- Allow users to download relevant analytics and visualizations.
+10. User Interface and Accessibility
+- Develop a web application with an interactive and accessible interface.
+- Make the application suitable for the intended users:
+  - Early warning and emergency responders.
+  - Scientists and researchers.
+  - Land managers.
+  - Firefighters.
+- Use accessible colour ramps to represent differences in hotspot activity.
+- Ensure that visualizations make historical patterns, seasonal trends, and unusual fire activity easy to identify.
+- Present important statistics and analytical results clearly.
+- Make the application easy to use for geographical and historical fire activity exploration.
