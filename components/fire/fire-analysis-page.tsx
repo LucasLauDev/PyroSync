@@ -10,6 +10,7 @@ import {
 import { REGION_PRESETS, MONTH_NAMES } from "./constants";
 import { FireCalendar } from "./fire-calendar";
 import { FireAnalytics } from "./fire-analytics";
+import { FireComparison } from "./fire-comparison";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,7 @@ import {
   IconWorld,
   IconTrendingUp,
   IconAlertTriangle,
+  IconScale,
 } from "@tabler/icons-react";
 
 interface FireAnalysisPageProps {
@@ -60,7 +62,7 @@ export function FireAnalysisPage({
   onOpenExportDialog,
   onSwitchToMap,
 }: FireAnalysisPageProps) {
-  const [activeAnalysisSection, setActiveAnalysisSection] = useState<"trends" | "calendar" | "regimes">("trends");
+  const [activeAnalysisSection, setActiveAnalysisSection] = useState<"trends" | "calendar" | "compare" | "regimes">("trends");
 
   const currentPreset = REGION_PRESETS.find((r) => r.id === selectedRegion) || REGION_PRESETS[0];
 
@@ -240,6 +242,18 @@ export function FireAnalysisPage({
             </button>
 
             <button
+              onClick={() => setActiveAnalysisSection("compare")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                activeAnalysisSection === "compare"
+                  ? "bg-amber-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+              }`}
+            >
+              <IconScale className="size-3.5 text-cyan-400" />
+              <span>Dual-Region Comparison</span>
+            </button>
+
+            <button
               onClick={() => setActiveAnalysisSection("regimes")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 activeAnalysisSection === "regimes"
@@ -303,6 +317,15 @@ export function FireAnalysisPage({
               selectedMonth={selectedMonth}
             />
           </div>
+        )}
+
+        {/* View 3: Dual-Region Comparative Analysis (Side-by-side charts) */}
+        {activeAnalysisSection === "compare" && (
+          <FireComparison
+            primaryRegion={selectedRegion}
+            primaryCalendarData={calendarData}
+            onSelectPrimaryRegion={onSelectRegion}
+          />
         )}
 
         {/* Tab 3: 13 Bio-Regimes Comparison Grid */}

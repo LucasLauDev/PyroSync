@@ -101,12 +101,12 @@ This platform implements the harmonization framework formulated in *Harmonized F
 ├──────────────────────────────────────┬──────────────────────────────────────┤
 │               MAP VIEW               │            ANALYSIS VIEW             │
 ├──────────────────────────────────────┼──────────────────────────────────────┤
-│  Map Sidebar (Explorer):             │  Harmonized Analytics Dashboard:     │
-│  ├── Date Range Calendar Component   │  ├── 7 Multi-Type Chart.js Views     │
-│  │   (Quick Presets + Day Picker)    │  │   (Line, Bar, Doughnut, Polar)    │
-│  ├── 13 Bioclimatic Regime Select    │  ├── 26-Year Calendar Heatmap Matrix │
-│  ├── Sensor Filter (MODIS / VIIRS)   │  │   (2000–2026 × 12 Colormaps)      │
-│  ├── Diurnal Filter (Day / Night)    │  └── 13 Bio-Regimes Overview Cards   │
+│  Map Sidebar (Explorer):             │  Harmonized Analytics (4 Tabs):      │
+│  ├── Date Range Calendar Component   │  ├── 1. Harmonized Charts (Chart.js) │
+│  │   (Quick Presets + Day Picker)    │  ├── 2. 26-Yr Calendar Matrix (Heat) │
+│  ├── 13 Bioclimatic Regime Select    │  ├── 3. Dual-Region Comparison Side  │
+│  ├── Sensor Filter (MODIS / VIIRS)   │  └── 4. 13 Bio-Regimes Overview      │
+│  ├── Diurnal Filter (Day / Night)    │                                      │
 │  ├── FRP Threshold Slider (0–500 MW) │                                      │
 │  └── Custom AOI Boundary & Export    │                                      │
 │                                      │                                      │
