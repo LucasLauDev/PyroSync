@@ -34,6 +34,7 @@ import {
   IconCheck,
   IconChevronDown,
   IconChevronUp,
+  IconX,
 } from "@tabler/icons-react";
 
 interface FireAnalysisPageProps {
@@ -122,7 +123,7 @@ export function FireAnalysisPage({
     <div className="w-full h-full min-h-screen overflow-y-auto bg-slate-950 text-slate-100 pb-16 pt-20 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Top Analysis Header Card */}
-        <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-slate-950/90 backdrop-blur-xl p-5 sm:p-6 shadow-2xl">
+        <div className="relative rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-slate-950/90 backdrop-blur-xl p-5 sm:p-6 shadow-2xl">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
@@ -240,11 +241,11 @@ export function FireAnalysisPage({
             </div>
           </div>
 
-          {/* Controls Strip 2: Observation Window with Calendar & Shared Filters */}
-          <div className="mt-3 pt-3 border-t border-slate-800/60 space-y-3">
+          {/* Controls Strip 2: Observation Window with Floating Calendar & Shared Filters */}
+          <div className="mt-3 pt-3 border-t border-slate-800/60">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-              {/* 1. Observation Date Window with Interactive Calendar Toggle */}
-              <div className="space-y-1.5">
+              {/* 1. Observation Date Window with Floating Interactive Calendar */}
+              <div className="space-y-1.5 relative">
                 <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
                   <span className="flex items-center gap-1 font-semibold text-slate-300">
                     <IconCalendar className="size-3.5 text-amber-500" />
@@ -267,18 +268,18 @@ export function FireAnalysisPage({
                     variant="outline"
                     size="sm"
                     onClick={() => setIsDateCalendarOpen((prev) => !prev)}
-                    className={`h-7 px-2.5 text-xs font-mono font-semibold gap-1.5 cursor-pointer transition-all ${
+                    className={`h-7 px-2.5 text-xs font-mono font-semibold gap-1.5 cursor-pointer transition-all shrink-0 ${
                       isDateCalendarOpen
                         ? "bg-amber-600 text-white border-amber-500 shadow-sm"
                         : "bg-slate-950 border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800"
                     }`}
                   >
-                    <IconCalendar className="size-3.5 text-amber-400" />
-                    <span>{isDateCalendarOpen ? "Hide Calendar" : "Select Date Range (Calendar)"}</span>
+                    <IconCalendar className="size-3.5 text-amber-400 shrink-0" />
+                    <span>Date Range Calendar</span>
                     {isDateCalendarOpen ? (
-                      <IconChevronUp className="size-3 text-white" />
+                      <IconChevronUp className="size-3 text-white shrink-0" />
                     ) : (
-                      <IconChevronDown className="size-3 text-slate-400" />
+                      <IconChevronDown className="size-3 text-slate-400 shrink-0" />
                     )}
                   </Button>
 
@@ -308,6 +309,43 @@ export function FireAnalysisPage({
                     );
                   })}
                 </div>
+
+                {/* Floating Calendar Overlay Window */}
+                {isDateCalendarOpen && (
+                  <>
+                    {/* Click-away backdrop overlay */}
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsDateCalendarOpen(false)}
+                    />
+
+                    {/* Floating Popover Container */}
+                    <div className="absolute top-full left-0 mt-2 z-50 w-[380px] sm:w-[410px] max-w-[calc(100vw-2rem)] bg-slate-950/95 backdrop-blur-2xl border border-slate-800 rounded-2xl p-3 shadow-2xl shadow-black/90 ring-1 ring-amber-500/20 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/80 text-xs">
+                        <span className="font-semibold text-slate-200 flex items-center gap-1.5">
+                          <IconCalendar className="size-3.5 text-amber-500" />
+                          <span>Select Observation Window</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsDateCalendarOpen(false)}
+                          className="size-5 rounded hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+                          aria-label="Close calendar"
+                        >
+                          <IconX className="size-3.5" />
+                        </button>
+                      </div>
+
+                      <FireDateRangeCalendar
+                        startDate={startDate}
+                        endDate={endDate}
+                        onChangeDateRange={(start, end) => onChangeDateRange?.(start, end)}
+                        minDate="2000-01-01"
+                        maxDate="2026-11-09"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* 2. Satellite Sensor Stream */}
@@ -367,34 +405,6 @@ export function FireAnalysisPage({
                 </div>
               </div>
             </div>
-
-            {/* Embedded Interactive Calendar Dropdown / Panel */}
-            {isDateCalendarOpen && (
-              <div className="pt-3 border-t border-slate-800/80 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="max-w-md bg-slate-950/90 border border-slate-800 rounded-xl p-2 shadow-2xl">
-                  <div className="flex items-center justify-between px-2 pb-1.5 mb-1.5 border-b border-slate-800/80 text-xs">
-                    <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                      <IconCalendar className="size-3.5 text-amber-500" />
-                      <span>Select Date Range</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setIsDateCalendarOpen(false)}
-                      className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
-                    >
-                      Done / Close
-                    </button>
-                  </div>
-                  <FireDateRangeCalendar
-                    startDate={startDate}
-                    endDate={endDate}
-                    onChangeDateRange={(start, end) => onChangeDateRange?.(start, end)}
-                    minDate="2000-01-01"
-                    maxDate="2026-11-09"
-                  />
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
