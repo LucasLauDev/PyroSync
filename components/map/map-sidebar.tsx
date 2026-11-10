@@ -8,35 +8,29 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   IconFlame,
   IconCalendar,
-  IconDownload,
   IconMapPin,
   IconLayersSubtract,
   IconWorld,
   IconSun,
   IconMoon,
   IconX,
-  IconCheck,
-  IconAdjustments,
-  IconAdjustmentsHorizontal,
-  IconSparkles,
-  IconChartBar,
   IconRotate,
   IconChevronDown,
   IconChevronUp,
 } from "@tabler/icons-react";
 import { REGION_PRESETS, MONTH_NAMES } from "@/components/fire/constants";
 import { ColorRampType, HarmonizationMode, ViewMetric, RemarkArea } from "@/components/fire/types";
-import { AVAILABLE_LAYERS } from "./data/layers";
 import { FireDateRangeCalendar } from "@/components/fire/fire-date-range-calendar";
+import { SidebarCalibrationSection } from "./sidebar/sidebar-calibration-section";
+import { SidebarLayersTab } from "./sidebar/sidebar-layers-tab";
+import { SidebarHotspotsSummary } from "./sidebar/sidebar-hotspots-summary";
 
 interface MapSidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  // Date Range Filtering props
   startDate: string;
   endDate: string;
   onChangeDateRange: (start: string, end: string) => void;
-  // NASA Fire props
   selectedRegion?: string;
   onSelectRegion?: (regionId: string) => void;
   showHotspots?: boolean;
@@ -62,7 +56,6 @@ interface MapSidebarProps {
   onOpenExportDialog?: () => void;
   hotspotsCount?: number;
   totalFrp?: number;
-  // Map Layer props
   activeLayerId: string;
   onSelectLayer: (layerId: string) => void;
 }
@@ -75,8 +68,6 @@ export function MapSidebar({
   onChangeDateRange,
   selectedRegion = "Global",
   onSelectRegion,
-  showHotspots = true,
-  onToggleHotspots,
   sensorFilter = "all",
   onChangeSensorFilter,
   minFrpFilter = 0,
@@ -152,7 +143,7 @@ export function MapSidebar({
 
         {/* 1. Fire Filters & Date Range Tab */}
         <TabsContent value="filters" className="flex-1 overflow-y-auto p-3.5 space-y-3.5 m-0 focus-visible:outline-none custom-scrollbar">
-          {/* Selected Historical Cell Indicator (from Fire Analysis) */}
+          {/* Selected Historical Cell Indicator */}
           {selectedYear && selectedMonth && (
             <div className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs font-mono">
               <span className="text-amber-300 flex items-center gap-1">
@@ -249,99 +240,16 @@ export function MapSidebar({
             </select>
           </div>
 
-          {/* Section C: Harmonization Model & Display Calibration (Standardized with Fire Analysis) */}
-          <div className="space-y-3 pt-2 border-t border-slate-800/80">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <IconAdjustmentsHorizontal className="size-3.5 text-amber-400" />
-                <span>Harmonization & Display Calibration</span>
-              </label>
-              <span className="text-[10px] text-slate-400 font-mono">
-                Analysis Sync
-              </span>
-            </div>
-
-            {/* 1. Harmonization Model */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span className="flex items-center gap-1">
-                  <IconLayersSubtract className="size-3 text-slate-400" />
-                  <span>Harmonization Model</span>
-                </span>
-                <span className="text-[10px] text-amber-400 font-mono font-bold">
-                  {harmonizationMode === "overlap_scaled" ? `×${currentPreset.continuityFactor} k_ratio` : ""}
-                </span>
-              </div>
-              <select
-                value={harmonizationMode}
-                onChange={(e) => onChangeHarmonizationMode?.(e.target.value as HarmonizationMode)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer font-mono"
-              >
-                <option value="overlap_scaled">Overlap Continuity Scaled (k_ratio)</option>
-                <option value="active_fire_hex_days">Active Fire Hex-Days (H3 Res 7)</option>
-                <option value="vza_frp">VZA-Recalibrated FRP (MW)</option>
-                <option value="modis_equivalent">MODIS-Equivalent (&gt;3.7 MW)</option>
-              </select>
-            </div>
-
-            {/* 2. Display Metric */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span className="flex items-center gap-1">
-                  <IconChartBar className="size-3 text-slate-400" />
-                  <span>Primary Display Metric</span>
-                </span>
-              </div>
-              <select
-                value={viewMetric}
-                onChange={(e) => onChangeViewMetric?.(e.target.value as ViewMetric)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer font-mono"
-              >
-                <option value="harmonized_count">Harmonized Hotspots Count</option>
-                <option value="active_fire_hex_days">Active Fire Hex-Days (Spatial footprint)</option>
-                <option value="harmonized_frp_mw">Radiative Power Energy (MW)</option>
-              </select>
-            </div>
-
-            {/* 3. Perceptual Color Ramp */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span className="flex items-center gap-1">
-                  <IconSparkles className="size-3 text-slate-400" />
-                  <span>Map Hotspot Color Ramp</span>
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono">Perceptual</span>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {[
-                  { id: "flame", label: "Flame (Thermal)", gradient: "from-amber-500 via-rose-500 to-red-600" },
-                  { id: "viridis", label: "Viridis (Colorblind)", gradient: "from-indigo-600 via-teal-500 to-yellow-400" },
-                  { id: "inferno", label: "Inferno (Contrast)", gradient: "from-purple-900 via-rose-600 to-yellow-300" },
-                  { id: "diverging_anomaly", label: "Diverging Anomaly", gradient: "from-blue-500 via-slate-400 to-red-500" },
-                ].map((ramp) => {
-                  const isSelected = colorRamp === ramp.id;
-                  return (
-                    <button
-                      key={ramp.id}
-                      type="button"
-                      onClick={() => onChangeColorRamp?.(ramp.id as ColorRampType)}
-                      className={`h-8 px-2 rounded-lg border text-left flex items-center justify-between transition-all cursor-pointer ${
-                        isSelected
-                          ? "bg-slate-800 border-amber-500 ring-1 ring-amber-500/80 shadow-sm"
-                          : "bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span className={`size-3 rounded-full bg-gradient-to-r ${ramp.gradient} shrink-0`} />
-                        <span className="text-[11px] font-mono leading-none">{ramp.label}</span>
-                      </div>
-                      {isSelected && <IconCheck className="size-3 text-amber-400 shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+          {/* Section C: Harmonization & Display Calibration */}
+          <SidebarCalibrationSection
+            currentPreset={currentPreset}
+            harmonizationMode={harmonizationMode}
+            onChangeHarmonizationMode={onChangeHarmonizationMode}
+            viewMetric={viewMetric}
+            onChangeViewMetric={onChangeViewMetric}
+            colorRamp={colorRamp}
+            onChangeColorRamp={onChangeColorRamp}
+          />
 
           {/* Section D: Sensor Stream & Day/Night Filters */}
           <div className="space-y-3 pt-2 border-t border-slate-800/80">
@@ -356,7 +264,7 @@ export function MapSidebar({
                     key={s}
                     type="button"
                     onClick={() => onChangeSensorFilter?.(s)}
-                    className={`h-7 rounded text-xs font-mono font-medium transition-all ${
+                    className={`h-7 rounded text-xs font-mono font-medium transition-all cursor-pointer ${
                       sensorFilter === s
                         ? "bg-amber-600 text-white font-bold shadow-sm"
                         : "bg-slate-900 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-800/60"
@@ -383,7 +291,7 @@ export function MapSidebar({
                     key={id}
                     type="button"
                     onClick={() => onChangeDaynightFilter?.(id as any)}
-                    className={`h-7 rounded text-xs font-mono font-medium flex items-center justify-center gap-1 transition-all ${
+                    className={`h-7 rounded text-xs font-mono font-medium flex items-center justify-center gap-1 transition-all cursor-pointer ${
                       daynightFilter === id
                         ? "bg-amber-600 text-white font-bold shadow-sm"
                         : "bg-slate-900 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-800/60"
@@ -411,12 +319,12 @@ export function MapSidebar({
                 min={0}
                 max={500}
                 step={10}
-                className="py-1"
+                className="py-1 cursor-pointer"
               />
             </div>
           </div>
 
-          {/* Section E: Area of Interest (AOI) & Remark Dialog */}
+          {/* Section E: Area of Interest (AOI) */}
           <div className="space-y-2 pt-2 border-t border-slate-800/80">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
@@ -427,7 +335,7 @@ export function MapSidebar({
                 <button
                   type="button"
                   onClick={onClearRemarkArea}
-                  className="text-[10px] text-rose-400 hover:underline"
+                  className="text-[10px] text-rose-400 hover:underline cursor-pointer"
                 >
                   Clear AOI
                 </button>
@@ -439,7 +347,7 @@ export function MapSidebar({
               variant="outline"
               size="sm"
               onClick={onOpenRemarkDialog}
-              className="w-full h-8 text-xs font-mono justify-between border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-300 hover:text-white"
+              className="w-full h-8 text-xs font-mono justify-between border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer"
             >
               <span>{remarkArea.name || "Enter Coordinates / Draw AOI"}</span>
               <IconMapPin className="size-3.5 text-amber-500" />
@@ -447,73 +355,20 @@ export function MapSidebar({
           </div>
 
           {/* Section F: Live Hotspots Summary & CSV Export */}
-          <div className="space-y-2 pt-3 border-t border-slate-800/80">
-            <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">Filtered Active Hotspots:</span>
-                <span className={`font-mono font-bold ${viewMetric === "harmonized_count" ? "text-amber-400 text-sm" : "text-white"}`}>
-                  {hotspotsCount.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">Total Radiative Energy:</span>
-                <span className={`font-mono font-bold ${viewMetric === "harmonized_frp_mw" ? "text-amber-400 text-sm" : "text-amber-400"}`}>
-                  {totalFrp >= 1000 ? `${(totalFrp / 1000).toFixed(1)}k MW` : `${totalFrp} MW`}
-                </span>
-              </div>
-              {viewMetric === "active_fire_hex_days" && (
-                <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800">
-                  <span className="text-slate-400">Est. Active Hex-Days (Res-7):</span>
-                  <span className="font-mono font-bold text-cyan-400 text-sm">
-                    {Math.round(hotspotsCount * 0.42).toLocaleString()} hex-days
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <Button
-              variant="outline"
-              onClick={onOpenExportDialog}
-              className="w-full border-emerald-500/40 text-emerald-400 hover:bg-emerald-950/20 text-xs h-8 gap-1.5 cursor-pointer"
-            >
-              <IconDownload className="size-3.5" />
-              <span>Download Searched Data (CSV)</span>
-            </Button>
-          </div>
+          <SidebarHotspotsSummary
+            hotspotsCount={hotspotsCount}
+            totalFrp={totalFrp}
+            viewMetric={viewMetric}
+            onOpenExportDialog={onOpenExportDialog}
+          />
         </TabsContent>
 
         {/* 2. Map Layers Tab */}
         <TabsContent value="layers" className="flex-1 overflow-y-auto p-3.5 space-y-4 m-0 focus-visible:outline-none">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
-              <span>Tile Layer Selection</span>
-              <span className="text-[10px] text-slate-500 font-mono">Leaflet 2.0-beta</span>
-            </label>
-
-            <div className="space-y-1.5">
-              {AVAILABLE_LAYERS.map((layer) => {
-                const isSelected = layer.id === activeLayerId;
-                return (
-                  <button
-                    key={layer.id}
-                    type="button"
-                    onClick={() => onSelectLayer(layer.id)}
-                    className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition-all ${
-                      isSelected
-                        ? "bg-slate-800/90 border-amber-500 ring-1 ring-amber-500"
-                        : "bg-slate-900/50 border-slate-800 hover:border-slate-700 hover:bg-slate-800/30"
-                    }`}
-                  >
-                    <div>
-                      <div className="text-xs font-semibold text-white">{layer.name}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">{layer.description}</div>
-                    </div>
-                    {isSelected && <IconCheck className="size-4 text-amber-400" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <SidebarLayersTab
+            activeLayerId={activeLayerId}
+            onSelectLayer={onSelectLayer}
+          />
         </TabsContent>
       </Tabs>
     </div>

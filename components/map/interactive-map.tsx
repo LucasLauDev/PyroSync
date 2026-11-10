@@ -1,21 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
-import {
-  MapMarker,
-  MapToolMode,
-  MeasurePoint,
-  RadiusZone,
-  MapCoordinates,
-  HotspotPoint,
-  RemarkArea,
-  ColorRampType,
-  ViewMetric,
-  HarmonizationMode,
-} from "./types";
-import { REGION_PRESETS } from "@/components/fire/constants";
-import { RegionalCalendarData } from "@/components/fire/types";
 import { MapControls } from "./map-controls";
 import { MapSidebar } from "./map-sidebar";
 import { TelemetryHUD } from "./telemetry-hud";
@@ -24,9 +10,9 @@ import { FireRemarkDialog } from "@/components/fire/fire-remark-dialog";
 import { FireExportDialog } from "@/components/fire/fire-export-dialog";
 import { FireAnalysisPage } from "@/components/fire/fire-analysis-page";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { IconMap, IconChartBar } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
-import type { Map as LeafletMap } from "leaflet";
+import { InteractiveTopNav } from "./interactive-top-nav";
+import { useInteractiveMapState } from "./use-interactive-map-state";
 
 // Dynamically import the Leaflet canvas with SSR disabled
 const DynamicMapCanvas = dynamic(
@@ -43,488 +29,216 @@ const DynamicMapCanvas = dynamic(
 );
 
 export function InteractiveMap() {
-  // Map instance reference
-  const mapInstanceRef = useRef<LeafletMap | null>(null);
-
-  // Core map states (OpenStreetMap default)
-  const [activeLayerId, setActiveLayerId] = useState("osm-standard");
-  const [markers, setMarkers] = useState<MapMarker[]>([]);
-  const [activeTool, setActiveTool] = useState<MapToolMode>("pan");
-
-  // Telemetry states
-  const [cursorCoords, setCursorCoords] = useState<MapCoordinates | null>(null);
-  const [centerCoords, setCenterCoords] = useState<MapCoordinates>({ lat: 4.2, lng: 108.0 });
-  const [zoom, setZoom] = useState(6);
-
-  // Measurement tool states
-  const [measurePoints, setMeasurePoints] = useState<MeasurePoint[]>([]);
-
-  // Radius buffer tool states
-  const [radiusZone, setRadiusZone] = useState<RadiusZone>({
-    center: null,
-    radiusKm: 25,
-  });
-
-  // UI Drawer / Dialog states
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isLocating, setIsLocating] = useState(false);
-  const [addMarkerCoords, setAddMarkerCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [isAddMarkerOpen, setIsAddMarkerOpen] = useState(false);
-
-  // Layer visibility toggles
-  const [showPresets, setShowPresets] = useState(false);
-  const [showCustomMarkers, setShowCustomMarkers] = useState(false);
-
-  // ==========================================
-  // NASA FIRMS Fire Harmonization State
-  // ==========================================
-  const [selectedRegion, setSelectedRegion] = useState("Global");
-  const [startDate, setStartDate] = useState<string>("2026-09-10");
-  const [endDate, setEndDate] = useState<string>("2026-11-09");
-  const [hotspots, setHotspots] = useState<HotspotPoint[]>([]);
-  const [showHotspots, setShowHotspots] = useState(true);
-  const [colorRamp, setColorRamp] = useState<ColorRampType>("flame");
-  const [harmonizationMode, setHarmonizationMode] = useState<HarmonizationMode>("overlap_scaled");
-  const [viewMetric, setViewMetric] = useState<ViewMetric>("harmonized_count");
-  const [selectedYear, setSelectedYear] = useState<number | null>(2026);
-  const [selectedMonth, setSelectedMonth] = useState<number | null>(10);
-  const [sensorFilter, setSensorFilter] = useState<"all" | "MODIS" | "VIIRS">("all");
-  const [minFrpFilter, setMinFrpFilter] = useState<number>(0);
-  const [daynightFilter, setDaynightFilter] = useState<"all" | "D" | "N">("all");
-  const [remarkArea, setRemarkArea] = useState<RemarkArea>({ type: "none" });
-
-  // Dialog & Modal states for Fire Analytics
-  const [isRemarkDialogOpen, setIsRemarkDialogOpen] = useState(false);
-  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
-  const [calendarData, setCalendarData] = useState<RegionalCalendarData | null>(null);
-
-  // Top-level View Mode: "map" vs "analysis"
+  const state = useInteractiveMapState();
   const [activeMainTab, setActiveMainTab] = useState<"map" | "analysis">("map");
 
   const handleSwitchMainTab = useCallback((tab: "map" | "analysis") => {
     setActiveMainTab(tab);
     if (tab === "map") {
       setTimeout(() => {
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.invalidateSize();
+        if (state.mapInstanceRef.current) {
+          state.mapInstanceRef.current.invalidateSize();
         }
       }, 50);
     }
-  }, []);
-
-  // Handler when map instance is ready
-  const handleMapReady = useCallback((map: LeafletMap) => {
-    mapInstanceRef.current = map;
-  }, []);
-
-  // Smooth camera navigation
-  const handleFlyTo = useCallback((lat: number, lng: number, zoomLevel = 13) => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([lat, lng], zoomLevel, {
-        duration: 1.5,
-        easeLinearity: 0.25,
-      });
-    }
-  }, []);
-
-  const handleZoomIn = () => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.zoomIn();
-    }
-  };
-
-  const handleZoomOut = () => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.zoomOut();
-    }
-  };
-
-  const handleResetView = () => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([4.2, 108.0], 6, { duration: 1.2 });
-    }
-  };
-
-  // Browser Geolocation
-  const handleLocateMe = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser");
-      return;
-    }
-
-    setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setIsLocating(false);
-        handleFlyTo(latitude, longitude, 14);
-
-        const userMarker: MapMarker = {
-          id: `loc-user-${Date.now()}`,
-          title: "My Current Location",
-          description: `Detected GPS coordinates (accuracy: ±${Math.round(pos.coords.accuracy)}m)`,
-          lat: latitude,
-          lng: longitude,
-          category: "custom",
-          color: "#06b6d4",
-          isPreset: false,
-          createdAt: new Date().toLocaleTimeString(),
-        };
-
-        setMarkers((prev) => [userMarker, ...prev]);
-      },
-      (err) => {
-        setIsLocating(false);
-        console.warn("Geolocation warning:", err.message);
-        alert(`Could not retrieve location: ${err.message}`);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  };
-
-  // Marker CRUD
-  const handleSaveMarker = (newMarker: Omit<MapMarker, "id">) => {
-    const markerWithId: MapMarker = {
-      ...newMarker,
-      id: `marker-${Date.now()}`,
-    };
-    setMarkers((prev) => [markerWithId, ...prev]);
-    setIsAddMarkerOpen(false);
-    setAddMarkerCoords(null);
-  };
-
-  const handleDeleteMarker = (id: string) => {
-    setMarkers((prev) => prev.filter((m) => m.id !== id));
-  };
-
-  const handleMapClickToAddMarker = useCallback((coords: { lat: number; lng: number }) => {
-    setAddMarkerCoords(coords);
-    setIsAddMarkerOpen(true);
-  }, []);
-
-  const handleOpenAddMarkerFromSidebar = () => {
-    setAddMarkerCoords({ lat: centerCoords.lat, lng: centerCoords.lng });
-    setIsAddMarkerOpen(true);
-  };
-
-  // ==========================================
-  // Fetch NASA FIRMS Calendar Data
-  // ==========================================
-  const fetchCalendar = useCallback(async (region: string, mode: string) => {
-    try {
-      const res = await fetch(`/api/calendar?region=${encodeURIComponent(region)}&mode=${mode}`);
-      if (!res.ok) return;
-      const data: RegionalCalendarData = await res.json();
-      setCalendarData(data);
-    } catch (err) {
-      console.error("Failed to load calendar data:", err);
-    }
-  }, []);
-
-  // Fetch NASA FIRMS Hotspots Data
-  const fetchHotspots = useCallback(
-    async (
-      region: string,
-      sensor: string,
-      minFrp: number,
-      daynight: string,
-      remark: RemarkArea,
-      start: string,
-      end: string
-    ) => {
-      try {
-        const params = new URLSearchParams();
-        params.set("region", region);
-        params.set("sensor", sensor);
-        if (minFrp > 0) params.set("minFrp", minFrp.toString());
-        if (daynight !== "all") params.set("daynight", daynight);
-        if (start) params.set("startDate", start);
-        if (end) params.set("endDate", end);
-
-        if (remark.type === "bbox" && remark.bbox) {
-          params.set("bbox", remark.bbox.join(","));
-        } else if (remark.type === "circle" && remark.circle) {
-          params.set("remarkCenter", `${remark.circle.lat},${remark.circle.lng}`);
-          params.set("radiusKm", remark.circle.radiusKm.toString());
-        }
-
-        const res = await fetch(`/api/hotspots?${params.toString()}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        setHotspots(data.hotspots || []);
-      } catch (err) {
-        console.error("Hotspots fetch error:", err);
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    fetchCalendar(selectedRegion, harmonizationMode);
-  }, [selectedRegion, harmonizationMode, fetchCalendar]);
-
-  useEffect(() => {
-    fetchHotspots(selectedRegion, sensorFilter, minFrpFilter, daynightFilter, remarkArea, startDate, endDate);
-  }, [selectedRegion, sensorFilter, minFrpFilter, daynightFilter, remarkArea, startDate, endDate, fetchHotspots]);
-
-  // Handle Region Selection & Map Flight
-  const handleSelectRegion = (regionId: string) => {
-    setSelectedRegion(regionId);
-    const preset = REGION_PRESETS.find((r) => r.id === regionId);
-    if (preset) {
-      handleFlyTo(preset.center[0], preset.center[1], preset.zoom);
-    }
-    setRemarkArea({ type: "none" });
-  };
-
-  // Cell Click: select specific month and fly
-  const handleSelectCalendarCell = (year: number, month: number) => {
-    setSelectedYear(year);
-    setSelectedMonth(month);
-    const mStr = String(month).padStart(2, "0");
-    const lastDay = new Date(year, month, 0).getDate();
-    setStartDate(`${year}-${mStr}-01`);
-    setEndDate(`${year}-${mStr}-${String(lastDay).padStart(2, "0")}`);
-    // If year 2026, keep region focused
-    const preset = REGION_PRESETS.find((r) => r.id === selectedRegion);
-    if (preset) {
-      handleFlyTo(preset.center[0], preset.center[1], preset.zoom);
-    }
-  };
-
-  // Total FRP from current hotspots
-  const totalFrp = Math.round(
-    hotspots.reduce((sum, pt) => sum + (pt.harmonized_frp || pt.frp || 0), 0)
-  );
+  }, [state.mapInstanceRef]);
 
   return (
     <TooltipProvider>
       <div className="relative w-screen h-screen overflow-hidden bg-slate-950 font-sans select-none">
-        {/* ========================================================= */}
-        {/* MIDDLE TOP GROUP TAB SELECTION (MAP VIEW vs ANALYSIS)     */}
-        {/* ========================================================= */}
-        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center">
-          <div className="bg-slate-900/90 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-2xl rounded-full p-1 flex items-center gap-1">
-            <button
-              onClick={() => handleSwitchMainTab("map")}
-              className={cn(
-                "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 cursor-pointer",
-                activeMainTab === "map"
-                  ? "bg-amber-600 text-white shadow-md shadow-amber-600/30"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800/60"
-              )}
-            >
-              <IconMap className="size-3.5" />
-              <span>Map View</span>
-            </button>
-            <button
-              onClick={() => handleSwitchMainTab("analysis")}
-              className={cn(
-                "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 cursor-pointer",
-                activeMainTab === "analysis"
-                  ? "bg-amber-600 text-white shadow-md shadow-amber-600/30"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800/60"
-              )}
-            >
-              <IconChartBar className="size-3.5" />
-              <span>Fire Analysis</span>
-              <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
-            </button>
-          </div>
-        </div>
+        {/* Top Tab Switcher */}
+        <InteractiveTopNav
+          activeMainTab={activeMainTab}
+          onSwitchMainTab={handleSwitchMainTab}
+        />
 
-        {/* ========================================================= */}
-        {/* 1. MAP VIEW CONTAINER (OpenStreetMap + Leaflet 2.0 Canvas) */}
-        {/* ========================================================= */}
+        {/* 1. MAP VIEW CONTAINER */}
         <div
           className={cn(
             "w-full h-full relative transition-opacity duration-200",
-            activeMainTab === "map" ? "opacity-100 z-10" : "opacity-0 pointer-events-none absolute inset-0 z-0"
+            activeMainTab === "map"
+              ? "opacity-100 z-10"
+              : "opacity-0 pointer-events-none absolute inset-0 z-0"
           )}
         >
-          {/* Dynamic Leaflet 2.0 Map Canvas with OpenStreetMap Standard & Hotspots */}
           <DynamicMapCanvas
-            activeLayerId={activeLayerId}
-            markers={markers}
-            activeTool={activeTool}
-            onSetTool={setActiveTool}
-            measurePoints={measurePoints}
-            onAddMeasurePoint={(pt) => setMeasurePoints((prev) => [...prev, pt])}
-            radiusZone={radiusZone}
-            onSetRadiusCenter={(center) => setRadiusZone((prev) => ({ ...prev, center }))}
-            onMapClickToAddMarker={handleMapClickToAddMarker}
-            onCursorMove={setCursorCoords}
-            onCenterChange={setCenterCoords}
-            onZoomChange={setZoom}
-            showPresets={showPresets}
-            showCustomMarkers={showCustomMarkers}
-            onMapReady={handleMapReady}
-            // NASA FIRMS Hotspots & Remark Area
-            hotspots={hotspots}
-            showHotspots={showHotspots}
-            remarkArea={remarkArea}
-            onSetRemarkArea={setRemarkArea}
-            colorRamp={colorRamp}
+            activeLayerId={state.activeLayerId}
+            markers={state.markers}
+            activeTool={state.activeTool}
+            onSetTool={state.setActiveTool}
+            measurePoints={state.measurePoints}
+            onAddMeasurePoint={(pt) => state.setMeasurePoints((prev) => [...prev, pt])}
+            radiusZone={state.radiusZone}
+            onSetRadiusCenter={(center) => state.setRadiusZone((prev) => ({ ...prev, center }))}
+            onMapClickToAddMarker={state.handleMapClickToAddMarker}
+            onCursorMove={state.setCursorCoords}
+            onCenterChange={state.setCenterCoords}
+            onZoomChange={state.setZoom}
+            showPresets={state.showPresets}
+            showCustomMarkers={state.showCustomMarkers}
+            onMapReady={state.handleMapReady}
+            hotspots={state.hotspots}
+            showHotspots={state.showHotspots}
+            remarkArea={state.remarkArea}
+            onSetRemarkArea={state.setRemarkArea}
+            colorRamp={state.colorRamp}
           />
 
-          {/* Floating Side Drawer (NASA FIRMS Fire Filters, Date Range Calendar, Layers) */}
+          {/* Floating Side Drawer */}
           <MapSidebar
-            isOpen={isSidebarOpen}
-            onClose={() => setIsSidebarOpen(false)}
-            startDate={startDate}
-            endDate={endDate}
+            isOpen={state.isSidebarOpen}
+            onClose={() => state.setIsSidebarOpen(false)}
+            startDate={state.startDate}
+            endDate={state.endDate}
             onChangeDateRange={(s, e) => {
-              setStartDate(s);
-              setEndDate(e);
+              state.setStartDate(s);
+              state.setEndDate(e);
             }}
-            selectedRegion={selectedRegion}
-            onSelectRegion={handleSelectRegion}
-            showHotspots={showHotspots}
-            onToggleHotspots={setShowHotspots}
-            sensorFilter={sensorFilter}
-            onChangeSensorFilter={setSensorFilter}
-            minFrpFilter={minFrpFilter}
-            onChangeMinFrpFilter={setMinFrpFilter}
-            daynightFilter={daynightFilter}
-            onChangeDaynightFilter={setDaynightFilter}
-            colorRamp={colorRamp}
-            onChangeColorRamp={setColorRamp}
-            harmonizationMode={harmonizationMode}
-            onChangeHarmonizationMode={setHarmonizationMode}
-            viewMetric={viewMetric}
-            onChangeViewMetric={setViewMetric}
-            selectedYear={selectedYear}
-            selectedMonth={selectedMonth}
+            selectedRegion={state.selectedRegion}
+            onSelectRegion={state.handleSelectRegion}
+            showHotspots={state.showHotspots}
+            onToggleHotspots={state.setShowHotspots}
+            sensorFilter={state.sensorFilter}
+            onChangeSensorFilter={state.setSensorFilter}
+            minFrpFilter={state.minFrpFilter}
+            onChangeMinFrpFilter={state.setMinFrpFilter}
+            daynightFilter={state.daynightFilter}
+            onChangeDaynightFilter={state.setDaynightFilter}
+            colorRamp={state.colorRamp}
+            onChangeColorRamp={state.setColorRamp}
+            harmonizationMode={state.harmonizationMode}
+            onChangeHarmonizationMode={state.setHarmonizationMode}
+            viewMetric={state.viewMetric}
+            onChangeViewMetric={state.setViewMetric}
+            selectedYear={state.selectedYear}
+            selectedMonth={state.selectedMonth}
             onResetSelectedPeriod={() => {
-              setSelectedYear(2026);
-              setSelectedMonth(10);
-              setStartDate("2026-09-10");
-              setEndDate("2026-11-09");
+              state.setStartDate("2026-09-10");
+              state.setEndDate("2026-11-09");
             }}
-            remarkArea={remarkArea}
-            onClearRemarkArea={() => setRemarkArea({ type: "none" })}
-            onOpenRemarkDialog={() => setIsRemarkDialogOpen(true)}
-            onOpenExportDialog={() => setIsExportDialogOpen(true)}
-            hotspotsCount={hotspots.length}
-            totalFrp={totalFrp}
-            activeLayerId={activeLayerId}
-            onSelectLayer={setActiveLayerId}
+            remarkArea={state.remarkArea}
+            onClearRemarkArea={() => state.setRemarkArea({ type: "none" })}
+            onOpenRemarkDialog={() => state.setIsRemarkDialogOpen(true)}
+            onOpenExportDialog={() => state.setIsExportDialogOpen(true)}
+            hotspotsCount={state.hotspots.length}
+            totalFrp={state.totalFrp}
+            activeLayerId={state.activeLayerId}
+            onSelectLayer={state.setActiveLayerId}
           />
 
           {/* Floating Action Buttons / Navigation Cluster */}
           <MapControls
-            activeTool={activeTool}
-            onSetTool={setActiveTool}
-            onZoomIn={handleZoomIn}
-            onZoomOut={handleZoomOut}
-            onResetView={handleResetView}
-            onLocateMe={handleLocateMe}
-            isLocating={isLocating}
-            isSidebarOpen={isSidebarOpen}
-            onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
-            // NASA Fire Controls
-            showHotspots={showHotspots}
-            onToggleHotspots={() => setShowHotspots(!showHotspots)}
-            onOpenRemarkDialog={() => setIsRemarkDialogOpen(true)}
-            onOpenExportDialog={() => setIsExportDialogOpen(true)}
+            activeTool={state.activeTool}
+            onSetTool={state.setActiveTool}
+            onZoomIn={state.handleZoomIn}
+            onZoomOut={state.handleZoomOut}
+            onResetView={state.handleResetView}
+            onLocateMe={state.handleLocateMe}
+            isLocating={state.isLocating}
+            isSidebarOpen={state.isSidebarOpen}
+            onToggleSidebar={() => state.setIsSidebarOpen((prev) => !prev)}
+            showHotspots={state.showHotspots}
+            onToggleHotspots={() => state.setShowHotspots(!state.showHotspots)}
+            onOpenRemarkDialog={() => state.setIsRemarkDialogOpen(true)}
+            onOpenExportDialog={() => state.setIsExportDialogOpen(true)}
           />
 
           {/* Telemetry HUD & Status Bar */}
           <TelemetryHUD
-            cursorCoords={cursorCoords}
-            centerCoords={centerCoords}
-            zoom={zoom}
-            activeTool={activeTool}
-            measurePoints={measurePoints}
-            radiusZone={radiusZone}
-            onResetTool={() => setActiveTool("pan")}
-            onClearMeasure={() => setMeasurePoints([])}
-            onClearRadius={() => setRadiusZone((prev) => ({ ...prev, center: null }))}
-            // NASA Fire telemetry
-            remarkArea={remarkArea}
-            onClearRemarkArea={() => setRemarkArea({ type: "none" })}
-            hotspotsCount={hotspots.length}
+            cursorCoords={state.cursorCoords}
+            centerCoords={state.centerCoords}
+            zoom={state.zoom}
+            activeTool={state.activeTool}
+            measurePoints={state.measurePoints}
+            radiusZone={state.radiusZone}
+            onResetTool={() => state.setActiveTool("pan")}
+            onClearMeasure={() => state.setMeasurePoints([])}
+            onClearRadius={() => state.setRadiusZone((prev) => ({ ...prev, center: null }))}
+            remarkArea={state.remarkArea}
+            onClearRemarkArea={() => state.setRemarkArea({ type: "none" })}
+            hotspotsCount={state.hotspots.length}
           />
         </div>
 
-        {/* ========================================================= */}
-        {/* 2. ANALYSIS PAGE VIEW CONTAINER                          */}
-        {/* ========================================================= */}
+        {/* 2. ANALYSIS PAGE VIEW CONTAINER */}
         <div
           className={cn(
             "w-full h-full relative transition-opacity duration-200",
-            activeMainTab === "analysis" ? "opacity-100 z-20" : "opacity-0 pointer-events-none absolute inset-0 z-0"
+            activeMainTab === "analysis"
+              ? "opacity-100 z-20"
+              : "opacity-0 pointer-events-none absolute inset-0 z-0"
           )}
         >
           <FireAnalysisPage
-            calendarData={calendarData}
-            selectedRegion={selectedRegion}
-            onSelectRegion={handleSelectRegion}
-            colorRamp={colorRamp}
-            onChangeColorRamp={setColorRamp}
-            viewMetric={viewMetric}
-            onChangeViewMetric={setViewMetric}
-            harmonizationMode={harmonizationMode}
-            onChangeHarmonizationMode={setHarmonizationMode}
-            selectedYear={selectedYear}
-            selectedMonth={selectedMonth}
-            onSelectCell={handleSelectCalendarCell}
-            onOpenExportDialog={() => setIsExportDialogOpen(true)}
+            calendarData={state.calendarData}
+            selectedRegion={state.selectedRegion}
+            onSelectRegion={state.handleSelectRegion}
+            colorRamp={state.colorRamp}
+            onChangeColorRamp={state.setColorRamp}
+            viewMetric={state.viewMetric}
+            onChangeViewMetric={state.setViewMetric}
+            harmonizationMode={state.harmonizationMode}
+            onChangeHarmonizationMode={state.setHarmonizationMode}
+            selectedYear={state.selectedYear}
+            selectedMonth={state.selectedMonth}
+            onSelectCell={state.handleSelectCalendarCell}
+            onOpenExportDialog={() => state.setIsExportDialogOpen(true)}
             onSwitchToMap={() => handleSwitchMainTab("map")}
-            // Standardized shared filters
-            startDate={startDate}
-            endDate={endDate}
+            startDate={state.startDate}
+            endDate={state.endDate}
             onChangeDateRange={(s, e) => {
-              setStartDate(s);
-              setEndDate(e);
+              state.setStartDate(s);
+              state.setEndDate(e);
             }}
-            sensorFilter={sensorFilter}
-            onChangeSensorFilter={setSensorFilter}
-            daynightFilter={daynightFilter}
-            onChangeDaynightFilter={setDaynightFilter}
-            minFrpFilter={minFrpFilter}
-            onChangeMinFrpFilter={setMinFrpFilter}
+            sensorFilter={state.sensorFilter}
+            onChangeSensorFilter={state.setSensorFilter}
+            daynightFilter={state.daynightFilter}
+            onChangeDaynightFilter={state.setDaynightFilter}
+            minFrpFilter={state.minFrpFilter}
+            onChangeMinFrpFilter={state.setMinFrpFilter}
           />
         </div>
 
-        {/* Dialog to Name & Style Dropped Marker */}
+        {/* Marker Modal */}
         <AddMarkerDialog
-          isOpen={isAddMarkerOpen}
-          coords={addMarkerCoords}
+          isOpen={state.isAddMarkerOpen}
+          coords={state.addMarkerCoords}
           onClose={() => {
-            setIsAddMarkerOpen(false);
-            setAddMarkerCoords(null);
+            state.setIsAddMarkerOpen(false);
+            state.setAddMarkerCoords(null);
           }}
-          onSave={handleSaveMarker}
+          onSave={state.handleSaveMarker}
         />
 
-        {/* Modal: Enter Latitude, Longitude & Remark Area */}
+        {/* Fire Remark Modal */}
         <FireRemarkDialog
-          isOpen={isRemarkDialogOpen}
-          onClose={() => setIsRemarkDialogOpen(false)}
+          isOpen={state.isRemarkDialogOpen}
+          onClose={() => state.setIsRemarkDialogOpen(false)}
           onApplyRemark={(area) => {
-            setRemarkArea({
+            state.setRemarkArea({
               type: area.type,
               bbox: area.bbox,
-              circle: area.circle ? { lat: area.circle.lat, lng: area.circle.lon, radiusKm: area.circle.radiusKm } : undefined,
+              circle: area.circle
+                ? { lat: area.circle.lat, lng: area.circle.lon, radiusKm: area.circle.radiusKm }
+                : undefined,
               name: area.name,
             });
           }}
-          onFlyTo={handleFlyTo}
+          onFlyTo={state.handleFlyTo}
         />
 
-        {/* Modal: Export CSV */}
+        {/* Export CSV Modal */}
         <FireExportDialog
-          isOpen={isExportDialogOpen}
-          onClose={() => setIsExportDialogOpen(false)}
-          selectedRegion={selectedRegion}
-          remarkArea={remarkArea}
-          sensorFilter={sensorFilter}
-          minFrpFilter={minFrpFilter}
-          daynightFilter={daynightFilter}
-          totalHotspotsCount={hotspots.length}
-          startDate={startDate}
-          endDate={endDate}
+          isOpen={state.isExportDialogOpen}
+          onClose={() => state.setIsExportDialogOpen(false)}
+          selectedRegion={state.selectedRegion}
+          remarkArea={state.remarkArea}
+          sensorFilter={state.sensorFilter}
+          minFrpFilter={state.minFrpFilter}
+          daynightFilter={state.daynightFilter}
+          totalHotspotsCount={state.hotspots.length}
+          startDate={state.startDate}
+          endDate={state.endDate}
         />
       </div>
     </TooltipProvider>
