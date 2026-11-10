@@ -4,20 +4,18 @@ import { useState, useEffect, useMemo } from "react";
 import { RegionalCalendarData } from "../types";
 import { REGION_PRESETS, MONTH_NAMES } from "../constants";
 import {
-  IconFlame,
-  IconCalendar,
-  IconScale,
-  IconChartBar,
-  IconMoon,
-  IconTrendingUp,
-  IconActivity,
-  IconBolt,
-} from "@tabler/icons-react";
-import {
   MetricDifferenceRow,
   getMonthlyMetricValue,
   ComparisonFilters,
 } from "./comparison-types";
+import { computeComparisonMetrics } from "./comparison-metrics-calculator";
+import {
+  buildCumulativeDataset,
+  buildAnomalyDataset,
+  buildDiurnalDataset,
+  buildPolarDataset,
+  buildAnnualDataset,
+} from "./comparison-chart-builders";
 
 interface UseComparisonDataParams {
   filters1: ComparisonFilters;
@@ -85,6 +83,11 @@ export function useComparisonData({
       setData2(cache[region2]);
       return;
     }
+    if (primaryCalendarData?.region === region2) {
+      setData2(primaryCalendarData);
+      setCache((prev) => ({ ...prev, [region2]: primaryCalendarData }));
+      return;
+    }
 
     let isMounted = true;
     setIsLoading2(true);
@@ -104,7 +107,7 @@ export function useComparisonData({
     return () => {
       isMounted = false;
     };
-  }, [region2, cache]);
+  }, [region2, cache, primaryCalendarData]);
 
   const preset1 = REGION_PRESETS.find((r) => r.id === region1) || REGION_PRESETS[0];
   const preset2 = REGION_PRESETS.find((r) => r.id === region2) || REGION_PRESETS[1];
@@ -124,28 +127,32 @@ export function useComparisonData({
   const nightRatio2 = nightFires2 / totalDiurnal2;
   const nightPct2 = Math.round(nightRatio2 * 100);
 
-  const yData1 = data1?.calendar.find((y) => y.year === year1);
-  const yData2 = data2?.calendar.find((y) => y.year === year2);
+  const yData1 = useMemo(
+    () => data1?.calendar?.find((y) => y.year === year1) || null,
+    [data1, year1]
+  );
+  const yData2 = useMemo(
+    () => data2?.calendar?.find((y) => y.year === year2) || null,
+    [data2, year2]
+  );
 
   const totalBurden1 = useMemo(() => {
     if (!yData1) return 0;
-    return yData1.months.reduce(
-      (acc, m) => acc + getMonthlyMetricValue(m, sensor1, metric1, daynight1, nightRatio1),
-      0
-    );
+    return (yData1.months || []).reduce((acc, m) => {
+      return acc + getMonthlyMetricValue(m, sensor1, metric1, daynight1, nightRatio1);
+    }, 0);
   }, [yData1, sensor1, metric1, daynight1, nightRatio1]);
 
   const totalBurden2 = useMemo(() => {
     if (!yData2) return 0;
-    return yData2.months.reduce(
-      (acc, m) => acc + getMonthlyMetricValue(m, sensor2, metric2, daynight2, nightRatio2),
-      0
-    );
+    return (yData2.months || []).reduce((acc, m) => {
+      return acc + getMonthlyMetricValue(m, sensor2, metric2, daynight2, nightRatio2);
+    }, 0);
   }, [yData2, sensor2, metric2, daynight2, nightRatio2]);
 
   const totalFrp1 = useMemo(() => {
     if (!yData1) return 0;
-    return yData1.months.reduce((acc, m) => {
+    return (yData1.months || []).reduce((acc, m) => {
       let f = m.harmonized_frp_mw || 0;
       if (daynight1 === "D") f *= Math.max(1 - nightRatio1, 0.05);
       if (daynight1 === "N") f *= Math.max(nightRatio1, 0.05);
@@ -155,7 +162,7 @@ export function useComparisonData({
 
   const totalFrp2 = useMemo(() => {
     if (!yData2) return 0;
-    return yData2.months.reduce((acc, m) => {
+    return (yData2.months || []).reduce((acc, m) => {
       let f = m.harmonized_frp_mw || 0;
       if (daynight2 === "D") f *= Math.max(1 - nightRatio2, 0.05);
       if (daynight2 === "N") f *= Math.max(nightRatio2, 0.05);
@@ -166,467 +173,169 @@ export function useComparisonData({
   const meanFrp1 = totalBurden1 > 0 ? (totalFrp1 / totalBurden1).toFixed(1) : "0.0";
   const meanFrp2 = totalBurden2 > 0 ? (totalFrp2 / totalBurden2).toFixed(1) : "0.0";
 
-  const totalHex1 = useMemo(() => {
-    if (!yData1) return 0;
-    return yData1.months.reduce((acc, m) => acc + (m.active_fire_hex_days || 0), 0);
-  }, [yData1]);
-
-  const totalHex2 = useMemo(() => {
-    if (!yData2) return 0;
-    return yData2.months.reduce((acc, m) => acc + (m.active_fire_hex_days || 0), 0);
-  }, [yData2]);
-
-  const seasonDuration1 = yData1?.season_timing?.duration_months || 0;
-  const seasonDuration2 = yData2?.season_timing?.duration_months || 0;
+  const totalHex1 = useMemo(
+    () => (yData1?.months || []).reduce((acc, m) => acc + (m.active_fire_hex_days || 0), 0),
+    [yData1]
+  );
+  const totalHex2 = useMemo(
+    () => (yData2?.months || []).reduce((acc, m) => acc + (m.active_fire_hex_days || 0), 0),
+    [yData2]
+  );
 
   const peak1 = useMemo(() => {
-    if (!yData1) return { month: "Oct", count: 0, zScore: 0 };
-    let max = -1;
-    let pk = yData1.months[0];
+    if (!yData1?.months || yData1.months.length === 0)
+      return { month: "N/A", count: 0, zScore: 0, monthIdx: 0 };
+    let maxM = yData1.months[0];
     yData1.months.forEach((m) => {
-      const v = getMonthlyMetricValue(m, sensor1, metric1, daynight1, nightRatio1);
-      if (v > max) {
-        max = v;
-        pk = m;
-      }
+      const val = getMonthlyMetricValue(m, sensor1, metric1, daynight1, nightRatio1);
+      const maxVal = getMonthlyMetricValue(maxM, sensor1, metric1, daynight1, nightRatio1);
+      if (val > maxVal) maxM = m;
     });
     return {
-      month: MONTH_NAMES[pk.month - 1] || "Oct",
-      count: max,
-      zScore: pk.robust_z_score,
+      month: MONTH_NAMES[maxM.month - 1] || `M${maxM.month}`,
+      count: getMonthlyMetricValue(maxM, sensor1, metric1, daynight1, nightRatio1),
+      zScore: Number(maxM.robust_z_score.toFixed(2)),
+      monthIdx: maxM.month - 1,
     };
   }, [yData1, sensor1, metric1, daynight1, nightRatio1]);
 
   const peak2 = useMemo(() => {
-    if (!yData2) return { month: "Aug", count: 0, zScore: 0 };
-    let max = -1;
-    let pk = yData2.months[0];
+    if (!yData2?.months || yData2.months.length === 0)
+      return { month: "N/A", count: 0, zScore: 0, monthIdx: 0 };
+    let maxM = yData2.months[0];
     yData2.months.forEach((m) => {
-      const v = getMonthlyMetricValue(m, sensor2, metric2, daynight2, nightRatio2);
-      if (v > max) {
-        max = v;
-        pk = m;
-      }
+      const val = getMonthlyMetricValue(m, sensor2, metric2, daynight2, nightRatio2);
+      const maxVal = getMonthlyMetricValue(maxM, sensor2, metric2, daynight2, nightRatio2);
+      if (val > maxVal) maxM = m;
     });
     return {
-      month: MONTH_NAMES[pk.month - 1] || "Aug",
-      count: max,
-      zScore: pk.robust_z_score,
+      month: MONTH_NAMES[maxM.month - 1] || `M${maxM.month}`,
+      count: getMonthlyMetricValue(maxM, sensor2, metric2, daynight2, nightRatio2),
+      zScore: Number(maxM.robust_z_score.toFixed(2)),
+      monthIdx: maxM.month - 1,
     };
   }, [yData2, sensor2, metric2, daynight2, nightRatio2]);
 
-  const diffPct = useMemo(() => {
-    if (totalBurden1 === 0 && totalBurden2 === 0) return 0;
-    if (totalBurden2 === 0) return 100;
-    return Math.round(((totalBurden1 - totalBurden2) / totalBurden2) * 100);
-  }, [totalBurden1, totalBurden2]);
+  const seasonDuration1 = useMemo(
+    () => (yData1?.months || []).filter((m) => m.robust_z_score >= 0.5).length,
+    [yData1]
+  );
+  const seasonDuration2 = useMemo(
+    () => (yData2?.months || []).filter((m) => m.robust_z_score >= 0.5).length,
+    [yData2]
+  );
 
-  const metricsDifferences = useMemo<MetricDifferenceRow[]>(() => {
-    const dBurden = totalBurden1 - totalBurden2;
-    const pBurden =
-      totalBurden2 > 0 ? Math.round((dBurden / totalBurden2) * 100) : totalBurden1 > 0 ? 100 : 0;
-    const dFrp = totalFrp1 - totalFrp2;
-    const pFrp =
-      totalFrp2 > 0 ? Math.round((dFrp / totalFrp2) * 100) : totalFrp1 > 0 ? 100 : 0;
-    const mFrp1 = parseFloat(meanFrp1);
-    const mFrp2 = parseFloat(meanFrp2);
-    const dMeanFrp = (mFrp1 - mFrp2).toFixed(1);
-    const pMeanFrp = mFrp2 > 0 ? Math.round(((mFrp1 - mFrp2) / mFrp2) * 100) : 0;
-    const dHex = totalHex1 - totalHex2;
-    const pHex =
-      totalHex2 > 0 ? Math.round((dHex / totalHex2) * 100) : totalHex1 > 0 ? 100 : 0;
-    const dNightPct = (nightPct1 - nightPct2).toFixed(1);
-    const mIdx1 = MONTH_NAMES.indexOf(peak1.month);
-    const mIdx2 = MONTH_NAMES.indexOf(peak2.month);
-    const monthOffset = mIdx1 >= 0 && mIdx2 >= 0 ? Math.abs(mIdx1 - mIdx2) : 0;
-    const dZScore = (peak1.zScore - peak2.zScore).toFixed(2);
-    const dDuration = seasonDuration1 - seasonDuration2;
-    const dContinuity = (preset1.continuityFactor - preset2.continuityFactor).toFixed(1);
+  const diffPct =
+    totalBurden2 > 0 ? Math.round(((totalBurden1 - totalBurden2) / totalBurden2) * 100) : 0;
 
-    return [
-      {
-        id: "burden",
-        title: "Total Fire Burden",
-        category: "Fire Volume",
-        icon: IconFlame,
-        val1: totalBurden1.toLocaleString(),
-        val2: totalBurden2.toLocaleString(),
-        diffAbs: dBurden > 0 ? `+${dBurden.toLocaleString()}` : dBurden.toLocaleString(),
-        diffPct: pBurden > 0 ? `+${pBurden}%` : `${pBurden}%`,
-        winner: dBurden > 0 ? "input1" : dBurden < 0 ? "input2" : "equal",
-        insight:
-          dBurden > 0
-            ? `Input 1 has +${Math.abs(pBurden)}% higher total fire volume`
-            : dBurden < 0
-            ? `Input 2 has +${Math.abs(pBurden)}% higher total fire volume`
-            : "Identical fire activity volume",
-      },
-      {
-        id: "frp",
-        title: "Total Radiative Energy (FRP)",
-        category: "Thermal Energy",
-        icon: IconBolt,
-        val1: `${Math.round(totalFrp1).toLocaleString()} MW`,
-        val2: `${Math.round(totalFrp2).toLocaleString()} MW`,
-        diffAbs: `${
-          dFrp > 0 ? `+${Math.round(dFrp).toLocaleString()}` : Math.round(dFrp).toLocaleString()
-        } MW`,
-        diffPct: pFrp > 0 ? `+${pFrp}%` : `${pFrp}%`,
-        winner: dFrp > 0 ? "input1" : dFrp < 0 ? "input2" : "equal",
-        insight:
-          dFrp > 0
-            ? "Input 1 released more cumulative thermal radiative energy"
-            : "Input 2 released more cumulative thermal radiative energy",
-      },
-      {
-        id: "mean_frp",
-        title: "Mean Fire Radiative Intensity",
-        category: "Severity",
-        icon: IconActivity,
-        val1: `${meanFrp1} MW`,
-        val2: `${meanFrp2} MW`,
-        diffAbs: `${parseFloat(dMeanFrp) > 0 ? `+${dMeanFrp}` : dMeanFrp} MW`,
-        diffPct: pMeanFrp > 0 ? `+${pMeanFrp}%` : `${pMeanFrp}%`,
-        winner:
-          parseFloat(dMeanFrp) > 0 ? "input1" : parseFloat(dMeanFrp) < 0 ? "input2" : "equal",
-        insight:
-          parseFloat(dMeanFrp) > 0
-            ? "Input 1 exhibits higher radiative severity per active detection"
-            : "Input 2 exhibits higher radiative severity per active detection",
-      },
-      {
-        id: "hex_days",
-        title: "Active Fire Hex-Days (Res-7)",
-        category: "Spatial Footprint",
-        icon: IconChartBar,
-        val1: totalHex1.toLocaleString(),
-        val2: totalHex2.toLocaleString(),
-        diffAbs: dHex > 0 ? `+${dHex.toLocaleString()}` : dHex.toLocaleString(),
-        diffPct: pHex > 0 ? `+${pHex}%` : `${pHex}%`,
-        winner: dHex > 0 ? "input1" : dHex < 0 ? "input2" : "equal",
-        insight:
-          dHex > 0
-            ? "Input 1 burned across a broader spatial extent"
-            : "Input 2 burned across a broader spatial extent",
-      },
-      {
-        id: "smoldering",
-        title: "Nocturnal Smoldering Ratio",
-        category: "Diurnal Behavior",
-        icon: IconMoon,
-        val1: `${nightPct1}% nocturnal`,
-        val2: `${nightPct2}% nocturnal`,
-        diffAbs: `${parseFloat(dNightPct) > 0 ? `+${dNightPct}` : dNightPct}% pts`,
-        diffPct: "Percentage pts",
-        winner:
-          parseFloat(dNightPct) > 0 ? "input1" : parseFloat(dNightPct) < 0 ? "input2" : "equal",
-        insight:
-          parseFloat(dNightPct) > 0
-            ? "Input 1 shows elevated nocturnal smoldering (peatland hazard)"
-            : "Input 2 shows elevated nocturnal smoldering",
-      },
-      {
-        id: "peak_month",
-        title: "Peak Fire Season Month",
-        category: "Season Timing",
-        icon: IconCalendar,
-        val1: `${peak1.month} (${peak1.count.toLocaleString()})`,
-        val2: `${peak2.month} (${peak2.count.toLocaleString()})`,
-        diffAbs: monthOffset === 0 ? "Synchronized" : `${monthOffset} mo offset`,
-        diffPct: monthOffset === 0 ? "Same Month" : "Asynchronous",
-        winner: "equal",
-        insight:
-          monthOffset === 0
-            ? `Both regions peaked in ${peak1.month}`
-            : `Seasonal offset of ${monthOffset} months (${peak1.month} vs ${peak2.month})`,
-      },
-      {
-        id: "anomaly",
-        title: "Peak Monthly Robust Z-Score",
-        category: "Climatology",
-        icon: IconTrendingUp,
-        val1: `${peak1.zScore > 0 ? `+${peak1.zScore}` : peak1.zScore}σ`,
-        val2: `${peak2.zScore > 0 ? `+${peak2.zScore}` : peak2.zScore}σ`,
-        diffAbs: `${parseFloat(dZScore) > 0 ? `+${dZScore}` : dZScore}σ`,
-        diffPct: "Z-score delta",
-        winner:
-          parseFloat(dZScore) > 0 ? "input1" : parseFloat(dZScore) < 0 ? "input2" : "equal",
-        insight:
-          parseFloat(dZScore) > 0
-            ? "Input 1 experienced a more extreme statistical surge relative to baseline"
-            : "Input 2 experienced a more extreme statistical surge relative to baseline",
-      },
-      {
-        id: "duration",
-        title: "Active Fire Season Duration",
-        category: "Seasonality",
-        icon: IconCalendar,
-        val1: `${seasonDuration1} months`,
-        val2: `${seasonDuration2} months`,
-        diffAbs: `${dDuration > 0 ? `+${dDuration}` : dDuration} mo`,
-        diffPct: "Duration delta",
-        winner: dDuration > 0 ? "input1" : dDuration < 0 ? "input2" : "equal",
-        insight:
-          dDuration > 0
-            ? `Input 1 active burning window lasted ${dDuration} months longer`
-            : dDuration < 0
-            ? `Input 2 active burning window lasted ${Math.abs(dDuration)} months longer`
-            : "Equal seasonal burn window",
-      },
-      {
-        id: "continuity",
-        title: "Continuity Multiplier",
-        category: "Sensor Calibration",
-        icon: IconScale,
-        val1: `×${preset1.continuityFactor}`,
-        val2: `×${preset2.continuityFactor}`,
-        diffAbs: `${parseFloat(dContinuity) > 0 ? `+${dContinuity}` : dContinuity}×`,
-        diffPct: "Scaling delta",
-        winner: "equal",
-        insight: "Regional MODIS-to-VIIRS sensor footprint scaling factor",
-      },
-    ];
+  const metricsDifferences: MetricDifferenceRow[] = useMemo(() => {
+    return computeComparisonMetrics({
+      totalBurden1, totalBurden2, totalFrp1, totalFrp2, meanFrp1, meanFrp2,
+      totalHex1, totalHex2, nightPct1, nightPct2, peak1, peak2,
+      seasonDuration1, seasonDuration2, preset1, preset2,
+    });
   }, [
-    totalBurden1,
-    totalBurden2,
-    totalFrp1,
-    totalFrp2,
-    meanFrp1,
-    meanFrp2,
-    totalHex1,
-    totalHex2,
-    nightPct1,
-    nightPct2,
-    peak1,
-    peak2,
-    seasonDuration1,
-    seasonDuration2,
-    preset1,
-    preset2,
+    totalBurden1, totalBurden2, totalFrp1, totalFrp2, meanFrp1, meanFrp2,
+    totalHex1, totalHex2, nightPct1, nightPct2, peak1, peak2,
+    seasonDuration1, seasonDuration2, preset1, preset2,
   ]);
 
-  // Chart datasets
   const cumulativeData1 = useMemo(() => {
-    let running = 0;
-    const curve = (yData1?.months || []).map((m) => {
-      running += getMonthlyMetricValue(m, sensor1, metric1, daynight1, nightRatio1);
-      return running;
+    return buildCumulativeDataset({
+      months: yData1?.months || [],
+      sensor: sensor1,
+      metric: metric1,
+      daynight: daynight1,
+      nightRatio: nightRatio1,
+      data: data1,
+      regionName: preset1.name,
+      year: year1,
+      color: "#f59e0b",
+      bgLight: "rgba(245, 158, 11, 0.15)",
     });
-    let baseRunning = 0;
-    const baseCurve = MONTH_NAMES.map((_, idx) => {
-      const b = data1?.monthly_baselines[String(idx + 1)];
-      let baseVal = b?.median || 0;
-      if (daynight1 === "D") baseVal *= 1 - nightRatio1;
-      if (daynight1 === "N") baseVal *= nightRatio1;
-      baseRunning += Math.round(baseVal);
-      return baseRunning;
-    });
-    return {
-      labels: MONTH_NAMES,
-      datasets: [
-        {
-          label: `${preset1.name} (${year1})`,
-          data: curve,
-          borderColor: "#f59e0b",
-          backgroundColor: "rgba(245, 158, 11, 0.15)",
-          fill: true,
-          tension: 0.3,
-          borderWidth: 2.5,
-          pointRadius: 3,
-          pointBackgroundColor: "#f59e0b",
-        },
-        {
-          label: `${preset1.name} 26-Yr Median`,
-          data: baseCurve,
-          borderColor: "rgba(148, 163, 184, 0.6)",
-          borderDash: [5, 5],
-          tension: 0.3,
-          borderWidth: 1.5,
-          pointRadius: 0,
-        },
-      ],
-    };
   }, [yData1, data1, preset1.name, year1, sensor1, metric1, daynight1, nightRatio1]);
 
   const cumulativeData2 = useMemo(() => {
-    let running = 0;
-    const curve = (yData2?.months || []).map((m) => {
-      running += getMonthlyMetricValue(m, sensor2, metric2, daynight2, nightRatio2);
-      return running;
+    return buildCumulativeDataset({
+      months: yData2?.months || [],
+      sensor: sensor2,
+      metric: metric2,
+      daynight: daynight2,
+      nightRatio: nightRatio2,
+      data: data2,
+      regionName: preset2.name,
+      year: year2,
+      color: "#06b6d4",
+      bgLight: "rgba(6, 182, 212, 0.15)",
     });
-    let baseRunning = 0;
-    const baseCurve = MONTH_NAMES.map((_, idx) => {
-      const b = data2?.monthly_baselines[String(idx + 1)];
-      let baseVal = b?.median || 0;
-      if (daynight2 === "D") baseVal *= 1 - nightRatio2;
-      if (daynight2 === "N") baseVal *= nightRatio2;
-      baseRunning += Math.round(baseVal);
-      return baseRunning;
-    });
-    return {
-      labels: MONTH_NAMES,
-      datasets: [
-        {
-          label: `${preset2.name} (${year2})`,
-          data: curve,
-          borderColor: "#06b6d4",
-          backgroundColor: "rgba(6, 182, 212, 0.15)",
-          fill: true,
-          tension: 0.3,
-          borderWidth: 2.5,
-          pointRadius: 3,
-          pointBackgroundColor: "#06b6d4",
-        },
-        {
-          label: `${preset2.name} 26-Yr Median`,
-          data: baseCurve,
-          borderColor: "rgba(148, 163, 184, 0.6)",
-          borderDash: [5, 5],
-          tension: 0.3,
-          borderWidth: 1.5,
-          pointRadius: 0,
-        },
-      ],
-    };
   }, [yData2, data2, preset2.name, year2, sensor2, metric2, daynight2, nightRatio2]);
 
-  const anomalyData1 = useMemo(() => {
-    const scores = (yData1?.months || []).map((m) => Number(m.robust_z_score.toFixed(2)));
-    const colors = scores.map((s) =>
-      s >= 2.0 ? "#ef4444" : s >= 1.0 ? "#f59e0b" : s <= -1.0 ? "#3b82f6" : "#10b981"
-    );
-    return {
-      labels: MONTH_NAMES.map((m) => m.slice(0, 3)),
-      datasets: [
-        { label: "Robust Z-Score", data: scores, backgroundColor: colors, borderRadius: 4 },
-      ],
-    };
-  }, [yData1]);
-
-  const anomalyData2 = useMemo(() => {
-    const scores = (yData2?.months || []).map((m) => Number(m.robust_z_score.toFixed(2)));
-    const colors = scores.map((s) =>
-      s >= 2.0 ? "#ef4444" : s >= 1.0 ? "#f59e0b" : s <= -1.0 ? "#3b82f6" : "#10b981"
-    );
-    return {
-      labels: MONTH_NAMES.map((m) => m.slice(0, 3)),
-      datasets: [
-        { label: "Robust Z-Score", data: scores, backgroundColor: colors, borderRadius: 4 },
-      ],
-    };
-  }, [yData2]);
+  const anomalyData1 = useMemo(() => buildAnomalyDataset(yData1?.months || []), [yData1]);
+  const anomalyData2 = useMemo(() => buildAnomalyDataset(yData2?.months || []), [yData2]);
 
   const diurnalData1 = useMemo(
-    () => ({
-      labels: ["Day Flaming (D)", "Night Smoldering (N)"],
-      datasets: [
-        {
-          data: [dayFires1, nightFires1],
-          backgroundColor: [
-            daynight1 === "N" ? "rgba(245, 158, 11, 0.2)" : "#f59e0b",
-            daynight1 === "D" ? "rgba(139, 92, 246, 0.2)" : "#8b5cf6",
-          ],
-          borderWidth: 0,
-        },
-      ],
-    }),
+    () =>
+      buildDiurnalDataset(
+        dayFires1,
+        nightFires1,
+        daynight1,
+        "#f59e0b",
+        "#8b5cf6",
+        "rgba(245, 158, 11, 0.2)",
+        "rgba(139, 92, 246, 0.2)"
+      ),
     [dayFires1, nightFires1, daynight1]
   );
 
   const diurnalData2 = useMemo(
-    () => ({
-      labels: ["Day Flaming (D)", "Night Smoldering (N)"],
-      datasets: [
-        {
-          data: [dayFires2, nightFires2],
-          backgroundColor: [
-            daynight2 === "N" ? "rgba(6, 182, 212, 0.2)" : "#06b6d4",
-            daynight2 === "D" ? "rgba(168, 85, 247, 0.2)" : "#a855f7",
-          ],
-          borderWidth: 0,
-        },
-      ],
-    }),
+    () =>
+      buildDiurnalDataset(
+        dayFires2,
+        nightFires2,
+        daynight2,
+        "#06b6d4",
+        "#a855f7",
+        "rgba(6, 182, 212, 0.2)",
+        "rgba(168, 85, 247, 0.2)"
+      ),
     [dayFires2, nightFires2, daynight2]
   );
 
-  const polarData1 = useMemo(() => {
-    const values = MONTH_NAMES.map((_, idx) => {
-      const b = data1?.monthly_baselines[String(idx + 1)];
-      let v = Math.round(b?.median || 0);
-      if (daynight1 === "D") v = Math.round(v * (1 - nightRatio1));
-      if (daynight1 === "N") v = Math.round(v * nightRatio1);
-      return v;
-    });
-    return {
-      labels: MONTH_NAMES.map((m) => m.slice(0, 3)),
-      datasets: [
-        {
-          label: `${preset1.name} Climatology`,
-          data: values,
-          backgroundColor: "rgba(245, 158, 11, 0.45)",
-          borderColor: "#f59e0b",
-          borderWidth: 1.5,
-        },
-      ],
-    };
-  }, [data1, preset1.name, daynight1, nightRatio1]);
+  const polarData1 = useMemo(
+    () =>
+      buildPolarDataset(
+        data1,
+        preset1.name,
+        daynight1,
+        nightRatio1,
+        "#f59e0b",
+        "rgba(245, 158, 11, 0.45)"
+      ),
+    [data1, preset1.name, daynight1, nightRatio1]
+  );
 
-  const polarData2 = useMemo(() => {
-    const values = MONTH_NAMES.map((_, idx) => {
-      const b = data2?.monthly_baselines[String(idx + 1)];
-      let v = Math.round(b?.median || 0);
-      if (daynight2 === "D") v = Math.round(v * (1 - nightRatio2));
-      if (daynight2 === "N") v = Math.round(v * nightRatio2);
-      return v;
-    });
-    return {
-      labels: MONTH_NAMES.map((m) => m.slice(0, 3)),
-      datasets: [
-        {
-          label: `${preset2.name} Climatology`,
-          data: values,
-          backgroundColor: "rgba(6, 182, 212, 0.45)",
-          borderColor: "#06b6d4",
-          borderWidth: 1.5,
-        },
-      ],
-    };
-  }, [data2, preset2.name, daynight2, nightRatio2]);
+  const polarData2 = useMemo(
+    () =>
+      buildPolarDataset(
+        data2,
+        preset2.name,
+        daynight2,
+        nightRatio2,
+        "#06b6d4",
+        "rgba(6, 182, 212, 0.45)"
+      ),
+    [data2, preset2.name, daynight2, nightRatio2]
+  );
 
-  const annualHistory1 = useMemo(() => {
-    const years = data1?.calendar || [];
-    return {
-      labels: years.map((y) => String(y.year)),
-      datasets: [
-        {
-          label: "Annual Detections",
-          data: years.map((y) => y.annual_total_harmonized),
-          backgroundColor: years.map((y) =>
-            y.year === year1 ? "#f59e0b" : "rgba(245, 158, 11, 0.35)"
-          ),
-          borderRadius: 3,
-        },
-      ],
-    };
-  }, [data1, year1]);
+  const annualHistory1 = useMemo(
+    () => buildAnnualDataset(data1, year1, "#f59e0b", "rgba(245, 158, 11, 0.35)"),
+    [data1, year1]
+  );
 
-  const annualHistory2 = useMemo(() => {
-    const years = data2?.calendar || [];
-    return {
-      labels: years.map((y) => String(y.year)),
-      datasets: [
-        {
-          label: "Annual Detections",
-          data: years.map((y) => y.annual_total_harmonized),
-          backgroundColor: years.map((y) =>
-            y.year === year2 ? "#06b6d4" : "rgba(6, 182, 212, 0.35)"
-          ),
-          borderRadius: 3,
-        },
-      ],
-    };
-  }, [data2, year2]);
+  const annualHistory2 = useMemo(
+    () => buildAnnualDataset(data2, year2, "#06b6d4", "rgba(6, 182, 212, 0.35)"),
+    [data2, year2]
+  );
 
   return {
     preset1,

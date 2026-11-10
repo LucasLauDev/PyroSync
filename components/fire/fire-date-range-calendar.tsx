@@ -9,9 +9,11 @@ import {
   IconChevronRight,
   IconRotate,
   IconFlame,
-  IconCheck,
   IconClock,
+  IconSparkles,
+  IconX,
 } from "@tabler/icons-react";
+import { FireCalendarGrid, CalendarCell } from "./fire-calendar-grid";
 
 interface FireDateRangeCalendarProps {
   startDate: string; // "YYYY-MM-DD"
@@ -19,6 +21,7 @@ interface FireDateRangeCalendarProps {
   onChangeDateRange: (start: string, end: string) => void;
   minDate?: string; // e.g. "2000-01-01"
   maxDate?: string; // e.g. "2026-11-09"
+  onClose?: () => void;
 }
 
 const MONTH_NAMES = [
@@ -26,14 +29,13 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December"
 ];
 
-const DAYS_OF_WEEK = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-
 export function FireDateRangeCalendar({
   startDate,
   endDate,
   onChangeDateRange,
   minDate = "2000-01-01",
   maxDate = "2026-11-09",
+  onClose,
 }: FireDateRangeCalendarProps) {
   // Calendar view year and month
   const initialDate = useMemo(() => {
@@ -54,7 +56,8 @@ export function FireDateRangeCalendar({
   const PRESETS = useMemo(() => [
     {
       id: "7d",
-      label: "Last 7 Days",
+      label: "7d",
+      fullLabel: "Last 7 Days",
       start: "2026-11-02",
       end: "2026-11-09",
       viewYear: 2026,
@@ -63,39 +66,43 @@ export function FireDateRangeCalendar({
     },
     {
       id: "30d",
-      label: "Last 30 Days",
+      label: "30d",
+      fullLabel: "Last 30 Days",
       start: "2026-10-10",
       end: "2026-11-09",
       viewYear: 2026,
       viewMonth: 10, // Nov
-      description: "Oct 10 – Nov 9, 2026 (Past month operational window)",
+      description: "Oct 10 – Nov 9, 2026 (Past month window)",
     },
     {
       id: "oct2026",
-      label: "Oct 2026 Peak",
+      label: "Oct '26",
+      fullLabel: "Oct 2026 Peak",
       start: "2026-10-01",
       end: "2026-10-31",
       viewYear: 2026,
       viewMonth: 9, // Oct
-      description: "October 2026 peak fire season",
+      description: "Oct 1 – Oct 31, 2026 (Peak fire season)",
     },
     {
       id: "nrt2026",
-      label: "Full 2026 NRT",
+      label: "Full NRT",
+      fullLabel: "Full 2026 NRT",
       start: "2026-09-10",
       end: "2026-11-09",
       viewYear: 2026,
       viewMonth: 9, // Oct
-      description: "Sep 10 – Nov 9, 2026 (Full 61-day NRT observations)",
+      description: "Sep 10 – Nov 9, 2026 (Full 61-day NRT)",
     },
     {
       id: "all",
-      label: "2000–2026",
+      label: "All",
+      fullLabel: "2000–2026 Era",
       start: minDate,
       end: maxDate,
       viewYear: 2026,
       viewMonth: 10,
-      description: "2000 – 2026 (26-Year multi-satellite climatology)",
+      description: "2000 – 2026 (26-Year climatology)",
     },
   ], [minDate, maxDate]);
 
@@ -185,15 +192,13 @@ export function FireDateRangeCalendar({
   return (
     <div className="w-full bg-slate-900/95 border border-slate-800 rounded-xl p-3 shadow-xl flex flex-col gap-3">
       {/* 1. Header with Active Range Display */}
-      <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <IconCalendar className="size-4 text-amber-500" />
           <span className="text-xs font-bold text-white">Date Range Filter</span>
-        </div>
-        <div className="flex items-center gap-1.5">
           {activePreset ? (
             <Badge className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono font-bold px-1.5 py-0">
-              {activePreset.label}
+              {activePreset.fullLabel}
             </Badge>
           ) : (
             <Badge className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-mono font-bold px-1.5 py-0 flex items-center gap-1">
@@ -201,15 +206,30 @@ export function FireDateRangeCalendar({
             </Badge>
           )}
         </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="size-6 rounded hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+            aria-label="Close calendar"
+          >
+            <IconX className="size-4" />
+          </button>
+        )}
       </div>
 
-      {/* 2. Quick Filter Presets with Clear Active Highlights */}
+      {/* 2. Quick Filter Presets Segmented Group (Single Row - 0 Wrapping) */}
       <div className="space-y-1.5">
         <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between">
-          <span>Quick Presets:</span>
-          <span className="text-slate-500">Click to apply instantly</span>
+          <span className="font-semibold text-slate-300 flex items-center gap-1">
+            <IconSparkles className="size-3 text-amber-500" />
+            <span>Quick Presets:</span>
+          </span>
+          <span className="text-amber-400 font-medium truncate max-w-[200px]" title={activePreset?.description}>
+            {activePreset ? activePreset.description : "Custom Date Range"}
+          </span>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="grid grid-cols-5 gap-1 p-0.5 rounded-lg bg-slate-950 border border-slate-800 h-8 items-center">
           {PRESETS.map((preset) => {
             const isSelected = activePreset?.id === preset.id;
             return (
@@ -218,14 +238,13 @@ export function FireDateRangeCalendar({
                 type="button"
                 onClick={() => handlePresetClick(preset)}
                 title={preset.description}
-                className={`h-7 px-2.5 rounded-lg text-xs font-mono font-semibold transition-all duration-150 flex items-center gap-1 cursor-pointer active:scale-95 select-none ${
+                className={`h-7 rounded-md text-[11px] font-mono font-semibold transition-all cursor-pointer flex items-center justify-center whitespace-nowrap select-none ${
                   isSelected
-                    ? "bg-amber-500 text-slate-950 font-bold border border-amber-300 shadow-md shadow-amber-500/30 ring-2 ring-amber-400/80 scale-[1.02]"
-                    : "bg-slate-950/80 text-slate-300 border border-slate-700/80 hover:border-slate-500 hover:text-white hover:bg-slate-800/90"
+                    ? "bg-amber-500 text-slate-950 font-bold border border-amber-300 shadow-sm"
+                    : "text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent"
                 }`}
               >
-                {isSelected && <IconCheck className="size-3.5 stroke-[3] text-slate-950 shrink-0" />}
-                <span>{preset.label}</span>
+                {preset.label}
               </button>
             );
           })}
@@ -302,58 +321,14 @@ export function FireDateRangeCalendar({
       </div>
 
       {/* 5. Calendar Days Grid */}
-      <div className="w-full">
-        {/* Day Header Row */}
-        <div className="grid grid-cols-7 text-center mb-1">
-          {DAYS_OF_WEEK.map((day) => (
-            <span key={day} className="text-[10px] font-mono font-semibold text-slate-500">
-              {day}
-            </span>
-          ))}
-        </div>
-
-        {/* Day Cells */}
-        <div className="grid grid-cols-7 gap-1">
-          {allCells.map((cell, idx) => {
-            if (!cell.isCurrentMonth) {
-              return (
-                <div
-                  key={`leading-${idx}`}
-                  className="h-7 flex items-center justify-center text-[10px] text-slate-700 pointer-events-none"
-                >
-                  {cell.day}
-                </div>
-              );
-            }
-
-            const isStart = cell.dateStr === startDate;
-            const isEnd = cell.dateStr === endDate;
-            const isInRange = cell.dateStr >= startDate && cell.dateStr <= endDate;
-            const isOutOfLimits = cell.dateStr < minDate || cell.dateStr > maxDate;
-
-            return (
-              <button
-                key={cell.dateStr}
-                type="button"
-                disabled={isOutOfLimits}
-                onClick={() => handleDayClick(cell.dateStr)}
-                className={`h-7 w-full rounded flex items-center justify-center text-[11px] font-mono transition-all duration-100 ${
-                  isOutOfLimits
-                    ? "text-slate-700 cursor-not-allowed"
-                    : isStart || isEnd
-                    ? "bg-amber-500 text-slate-950 font-extrabold shadow-md shadow-amber-950/50 ring-2 ring-amber-300 scale-105 z-10"
-                    : isInRange
-                    ? "bg-amber-500/25 text-amber-200 hover:bg-amber-500/35 font-medium"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                }`}
-                title={cell.dateStr}
-              >
-                {cell.day}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <FireCalendarGrid
+        allCells={allCells}
+        startDate={startDate}
+        endDate={endDate}
+        minDate={minDate}
+        maxDate={maxDate}
+        onDayClick={handleDayClick}
+      />
 
       {/* 6. Step Guidance & Reset Footer */}
       <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">

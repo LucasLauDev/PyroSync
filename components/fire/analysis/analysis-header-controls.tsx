@@ -24,7 +24,6 @@ import {
   IconMoon,
   IconChevronDown,
   IconChevronUp,
-  IconX,
 } from "@tabler/icons-react";
 
 interface AnalysisHeaderControlsProps {
@@ -200,71 +199,83 @@ export function AnalysisHeaderControls({
 
       {/* Controls Strip 2: Observation Window with Floating Calendar & Shared Filters */}
       <div className="mt-3 pt-3 border-t border-slate-800/60">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-3 text-xs">
           {/* Observation Date Window with Floating Interactive Calendar */}
-          <div className="space-y-1.5 relative">
+          <div className="space-y-1.5 relative md:col-span-2 xl:col-span-6">
             <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
               <span className="flex items-center gap-1 font-semibold text-slate-300">
                 <IconCalendar className="size-3.5 text-amber-500" />
                 <span>Observation Window:</span>
               </span>
-              <div className="flex items-center gap-1 font-bold">
-                <span className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                  {startDate}
-                </span>
-                <span className="text-slate-500">→</span>
-                <span className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                  {endDate}
-                </span>
-              </div>
+              <span className="text-[10px] text-amber-400 font-mono">
+                {startDate === "2026-09-10" && endDate === "2026-11-09"
+                  ? "Full 2026 NRT (61 Days)"
+                  : startDate === "2026-11-02" && endDate === "2026-11-09"
+                  ? "Last 7 Days (Post-NPP)"
+                  : startDate === "2026-10-10" && endDate === "2026-11-09"
+                  ? "Last 30 Days Active"
+                  : startDate === "2026-10-01" && endDate === "2026-10-31"
+                  ? "Oct 2026 Peak Season"
+                  : startDate === "2000-01-01"
+                  ? "26-Year Era (2000–2026)"
+                  : "Custom Date Range"}
+              </span>
             </div>
 
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              {/* Date Range Trigger Button (Shows selected dates & opens popover) */}
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setIsDateCalendarOpen((prev) => !prev)}
-                className={`h-7 px-2.5 text-xs font-mono font-semibold gap-1.5 cursor-pointer transition-all shrink-0 ${
+                className={`h-8 px-2.5 text-xs font-mono font-semibold gap-1.5 cursor-pointer transition-all shrink-0 ${
                   isDateCalendarOpen
                     ? "bg-amber-600 text-white border-amber-500 shadow-sm"
-                    : "bg-slate-950 border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800"
+                    : "bg-slate-950 border-slate-700 text-slate-200 hover:text-white hover:border-amber-500/50 hover:bg-slate-900"
                 }`}
+                title="Click to open interactive date picker calendar"
               >
                 <IconCalendar className="size-3.5 text-amber-400 shrink-0" />
-                <span>Date Range Calendar</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-amber-400 font-bold">{startDate}</span>
+                  <span className="text-slate-500 font-normal">→</span>
+                  <span className="text-amber-400 font-bold">{endDate}</span>
+                </div>
                 {isDateCalendarOpen ? (
-                  <IconChevronUp className="size-3 text-white shrink-0" />
+                  <IconChevronUp className="size-3 text-white shrink-0 ml-0.5" />
                 ) : (
-                  <IconChevronDown className="size-3 text-slate-400 shrink-0" />
+                  <IconChevronDown className="size-3 text-slate-400 shrink-0 ml-0.5" />
                 )}
               </Button>
 
-              {/* Quick Preset Buttons */}
-              {[
-                { label: "7d", s: "2026-11-02", e: "2026-11-09", title: "Last 7 Days" },
-                { label: "30d", s: "2026-10-10", e: "2026-11-09", title: "Last 30 Days" },
-                { label: "Oct '26", s: "2026-10-01", e: "2026-10-31", title: "Oct 2026 Peak" },
-                { label: "Full NRT", s: "2026-09-10", e: "2026-11-09", title: "Full 2026 NRT" },
-                { label: "All", s: "2000-01-01", e: "2026-11-09", title: "2000–2026" },
-              ].map((preset) => {
-                const isActive = startDate === preset.s && endDate === preset.e;
-                return (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    title={preset.title}
-                    onClick={() => onChangeDateRange?.(preset.s, preset.e)}
-                    className={`h-7 px-2 rounded text-[11px] font-mono font-semibold transition-all cursor-pointer ${
-                      isActive
-                        ? "bg-amber-500 text-slate-950 font-bold border border-amber-300 shadow-sm"
-                        : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-900"
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
+              {/* Quick Preset Buttons (Single-row segmented group) */}
+              <div className="grid grid-cols-5 gap-1 p-0.5 rounded-lg bg-slate-950 border border-slate-800 flex-1 h-8 items-center">
+                {[
+                  { label: "7d", s: "2026-11-02", e: "2026-11-09", title: "Last 7 Days (Post-NPP Handover)" },
+                  { label: "30d", s: "2026-10-10", e: "2026-11-09", title: "Last 30 Days Active" },
+                  { label: "Oct '26", s: "2026-10-01", e: "2026-10-31", title: "Oct 2026 Peak Season" },
+                  { label: "Full NRT", s: "2026-09-10", e: "2026-11-09", title: "Full 2026 NRT (61 Days)" },
+                  { label: "All", s: "2000-01-01", e: "2026-11-09", title: "26-Year Climatology (2000–2026)" },
+                ].map((preset) => {
+                  const isActive = startDate === preset.s && endDate === preset.e;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      title={preset.title}
+                      onClick={() => onChangeDateRange?.(preset.s, preset.e)}
+                      className={`h-7 px-1 rounded-md text-[11px] font-mono font-semibold transition-all cursor-pointer flex items-center justify-center whitespace-nowrap ${
+                        isActive
+                          ? "bg-amber-500 text-slate-950 font-bold border border-amber-300 shadow-sm"
+                          : "text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Floating Calendar Overlay Window */}
@@ -274,28 +285,14 @@ export function AnalysisHeaderControls({
                   className="fixed inset-0 z-40"
                   onClick={() => setIsDateCalendarOpen(false)}
                 />
-                <div className="absolute top-full left-0 mt-2 z-50 w-[380px] sm:w-[410px] max-w-[calc(100vw-2rem)] bg-slate-950/95 backdrop-blur-2xl border border-slate-800 rounded-2xl p-3 shadow-2xl shadow-black/90 ring-1 ring-amber-500/20 animate-in fade-in zoom-in-95 duration-150">
-                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/80 text-xs">
-                    <span className="font-semibold text-slate-200 flex items-center gap-1.5">
-                      <IconCalendar className="size-3.5 text-amber-500" />
-                      <span>Select Observation Window</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setIsDateCalendarOpen(false)}
-                      className="size-5 rounded hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
-                      aria-label="Close calendar"
-                    >
-                      <IconX className="size-3.5" />
-                    </button>
-                  </div>
-
+                <div className="absolute top-full left-0 mt-2 z-50 w-[380px] sm:w-[410px] max-w-[calc(100vw-2rem)] shadow-2xl shadow-black/90 ring-1 ring-amber-500/30 rounded-xl animate-in fade-in zoom-in-95 duration-150">
                   <FireDateRangeCalendar
                     startDate={startDate}
                     endDate={endDate}
                     onChangeDateRange={(start, end) => onChangeDateRange?.(start, end)}
                     minDate="2000-01-01"
                     maxDate="2026-11-09"
+                    onClose={() => setIsDateCalendarOpen(false)}
                   />
                 </div>
               </>
@@ -303,36 +300,36 @@ export function AnalysisHeaderControls({
           </div>
 
           {/* Satellite Sensor Stream */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-[11px] text-slate-400">
-              <span className="font-semibold text-slate-300">Satellite Sensor Stream:</span>
-              <span className="text-amber-400 font-mono font-bold">
+          <div className="space-y-1.5 md:col-span-1 xl:col-span-3">
+            <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+              <span className="font-semibold text-slate-300">Sensor Stream:</span>
+              <span className="text-amber-400 font-bold">
                 {sensorFilter === "all" ? "All Sensors" : sensorFilter}
               </span>
             </div>
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-1 p-0.5 rounded-lg bg-slate-950 border border-slate-800 h-8 items-center">
               {(["all", "MODIS", "VIIRS"] as const).map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => onChangeSensorFilter?.(s)}
-                  className={`h-7 rounded text-xs font-mono font-medium transition-all cursor-pointer ${
+                  className={`h-7 rounded-md text-xs font-mono font-medium transition-all cursor-pointer flex items-center justify-center ${
                     sensorFilter === s
-                      ? "bg-amber-600 text-white font-bold shadow-sm"
-                      : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-900"
+                      ? "bg-amber-500 text-slate-950 font-bold border border-amber-300 shadow-sm"
+                      : "text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent"
                   }`}
                 >
-                  {s === "all" ? "All Sensors" : s}
+                  {s === "all" ? "All" : s}
                 </button>
               ))}
             </div>
           </div>
 
           {/* Diurnal Phase */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-[11px] text-slate-400">
+          <div className="space-y-1.5 md:col-span-1 xl:col-span-3">
+            <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
               <span className="font-semibold text-slate-300">Diurnal Phase:</span>
-              <span className="text-amber-400 font-mono font-bold">
+              <span className="text-amber-400 font-bold">
                 {daynightFilter === "all"
                   ? "Day & Night"
                   : daynightFilter === "D"
@@ -340,9 +337,9 @@ export function AnalysisHeaderControls({
                   : "Night Smoldering"}
               </span>
             </div>
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-1 p-0.5 rounded-lg bg-slate-950 border border-slate-800 h-8 items-center">
               {[
-                { id: "all", label: "All Phases", icon: null },
+                { id: "all", label: "All", icon: null },
                 { id: "D", label: "Day", icon: IconSun },
                 { id: "N", label: "Night", icon: IconMoon },
               ].map(({ id, label, icon: Icon }) => (
@@ -350,10 +347,10 @@ export function AnalysisHeaderControls({
                   key={id}
                   type="button"
                   onClick={() => onChangeDaynightFilter?.(id as any)}
-                  className={`h-7 rounded text-xs font-mono font-medium flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                  className={`h-7 rounded-md text-xs font-mono font-medium flex items-center justify-center gap-1 transition-all cursor-pointer ${
                     daynightFilter === id
-                      ? "bg-amber-600 text-white font-bold shadow-sm"
-                      : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-900"
+                      ? "bg-amber-500 text-slate-950 font-bold border border-amber-300 shadow-sm"
+                      : "text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent"
                   }`}
                 >
                   {Icon && <Icon className="size-3" />}
