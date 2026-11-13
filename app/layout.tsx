@@ -16,9 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NASA FIRMS Harmonized Fire Calendar & Hotspot Analytics",
+  title: "PyroSync | NASA FIRMS Harmonized Fire Calendar & Hotspot Analytics",
   description:
-    "Harmonized multi-sensor timeline series, 26-year burning activity calendar, seasonal anomalies, trends, and interactive geospatial hotspot analytics across MODIS and VIIRS records.",
+    "PyroSync: Harmonized multi-satellite active fire timeline series, 26-year burning activity calendar, seasonal anomalies, trends, and interactive geospatial hotspot analytics across MODIS and VIIRS records.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

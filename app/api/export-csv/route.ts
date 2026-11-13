@@ -86,7 +86,8 @@ export async function GET(request: NextRequest) {
       const rows: string[] = [];
       // Research Metadata headers
       rows.push(`# =========================================================================`);
-      rows.push(`# NASA FIRMS 26-Year Harmonized Burning Activity Calendar Matrix (2000-2026)`);
+      rows.push(`# PyroSync: 26-Year Harmonized Burning Activity Calendar Matrix (2000-2026)`);
+      rows.push(`# Data Source: NASA Earthdata LANCE FIRMS (MODIS & VIIRS)`);
       rows.push(`# Bioclimatic Region: ${region}`);
       rows.push(`# Date Range Filter: ${startDate || "2000-01-01"} to ${endDate || "2026-11-09"}`);
       rows.push(`# Sensor Calibration: MODIS Terra/Aqua & VIIRS S-NPP/JPSS Continuous Model`);
@@ -240,10 +241,10 @@ export async function GET(request: NextRequest) {
       ? `Custom Circle (${remarkCenter.lat}, ${remarkCenter.lon}, r=${radiusKm}km)`
       : `Standard Bioclimatic Region (${region})`;
 
-    // NASA FIRMS Metadata Headers
+    // PyroSync Metadata Headers
     rows.push(`# =========================================================================`);
-    rows.push(`# NASA FIRMS Harmonized Active Fire Hotspot Dataset`);
-    rows.push(`# Data Source: NASA Earthdata LANCE FIRMS`);
+    rows.push(`# PyroSync: NASA FIRMS Harmonized Active Fire Hotspot Dataset`);
+    rows.push(`# Data Source: NASA Earthdata LANCE FIRMS (MODIS & VIIRS)`);
     rows.push(`# Bioclimatic Region: ${region}`);
     rows.push(`# Temporal Filter (Date Range): ${startDate || "2000-01-01"} to ${endDate || "2026-11-09"}`);
     rows.push(`# Instrument Sensor Filter: ${sensorLabel}`);

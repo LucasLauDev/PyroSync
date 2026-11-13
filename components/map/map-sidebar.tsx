@@ -107,7 +107,7 @@ export function MapSidebar({
           </div>
           <div>
             <h2 className="text-sm font-bold tracking-tight text-white leading-none">
-              NASA FIRMS Fire Explorer
+              PyroSync Fire Explorer
             </h2>
             <div className="flex items-center gap-1.5 mt-1">
               <span className="text-[10px] text-slate-400 font-mono">MODIS & VIIRS Harmonized</span>

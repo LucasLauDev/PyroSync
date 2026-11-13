@@ -78,7 +78,7 @@ export function AnalysisHeaderControls({
               variant="outline"
               className="border-amber-500/30 text-amber-400 bg-amber-500/10 font-mono text-[10px] tracking-wider uppercase flex items-center gap-1"
             >
-              <IconFlame className="size-3" /> NASA FIRMS Multi-Sensor Climatology
+              <IconFlame className="size-3" /> PyroSync Climatology
             </Badge>
             <Badge variant="secondary" className="font-mono text-[10px] bg-slate-800 text-slate-300">
               173-Month Overlap Era (2012–2026)
@@ -95,7 +95,8 @@ export function AnalysisHeaderControls({
           </div>
 
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-            Fire Activity & Harmonization Analysis
+            <span className="bg-gradient-to-r from-amber-400 via-orange-300 to-rose-400 bg-clip-text text-transparent font-extrabold">PyroSync</span>
+            <span>Fire Activity & Harmonization Analysis</span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
             Seamless 26-year cross-sensor climatology combining MODIS 1km and VIIRS 375m active fire detections.

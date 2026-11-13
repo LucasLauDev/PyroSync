@@ -127,13 +127,13 @@ export function FireExportDialog({
         <DialogHeader>
           <div className="flex items-center gap-2 text-emerald-400 font-mono text-xs uppercase tracking-wider">
             <IconDownload className="size-4" />
-            <span>NASA FIRMS Data Export</span>
+            <span>PyroSync Data Export</span>
           </div>
           <DialogTitle className="text-base font-bold text-white">
             Export Harmonized Fire Dataset (CSV)
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-400">
-            Export NASA Earth observation records strictly respecting all your active temporal, sensor, diurnal phase, and spatial filters.
+            Export PyroSync harmonized Earth observation records strictly respecting all your active temporal, sensor, diurnal phase, and spatial filters.
           </DialogDescription>
         </DialogHeader>
 

@@ -1,4 +1,4 @@
-# 🛰️ NASA FIRMS Harmonized Fire Activity Calendar & Analytics Platform
+# 🔥 PyroSync: NASA FIRMS Harmonized Fire Activity Calendar & Analytics Platform
 
 [![Next.js](https://img.shields.io/badge/Next.js-16.4.5-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
@@ -8,7 +8,9 @@
 [![NASA FIRMS](https://img.shields.io/badge/Data-NASA_FIRMS_LANCE-E03C31?style=for-the-badge&logo=nasa)](https://firms.modaps.eosdis.nasa.gov/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
-An enterprise-grade, responsive Earth observation web application harmonizing **26 years (2000–2026)** of multi-satellite active fire hotspot observations across the globe. Built with **Next.js 16 (Turbopack)**, **Leaflet 2.0**, **Chart.js v4**, and **shadcn/ui**, the platform bridges historical MODIS records with high-resolution VIIRS sensors into an unified burning activity calendar, robust anomaly detection engine, and interactive geospatial telemetry suite.
+**PyroSync** is an enterprise-grade, responsive Earth observation web application harmonizing **26 years (2000–2026)** of multi-satellite active fire hotspot observations across the globe. Built with **Next.js 16 (Turbopack)**, **Leaflet 2.0**, **Chart.js v4**, and **shadcn/ui**, the platform bridges historical MODIS records with high-resolution VIIRS sensors into an unified burning activity calendar, robust anomaly detection engine, and interactive geospatial telemetry suite.
+
+> 📖 **Comprehensive Stakeholder & Architecture Guide**: For an exhaustive breakdown of all system functionalities, scientific harmonization algorithms, stakeholder value matrices, and technical specifications, see [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md).
 
 ---
 
