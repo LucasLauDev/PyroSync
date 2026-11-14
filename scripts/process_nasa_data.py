@@ -370,7 +370,7 @@ def generate_26_year_calendar(region, real_daily_list):
         # Fire season onset (10%), peak (50%), cessation (90%)
         cum = 0
         onset_month = None
-        peak_month = None
+        midpoint_month = None
         cessation_month = None
 
         for m_rec in y_rec['months']:
@@ -401,12 +401,12 @@ def generate_26_year_calendar(region, real_daily_list):
             else:
                 anomaly_status = 'Normal Baseline'
 
-            # Season timing tracker
+            # Season timing tracker: onset (10%), midpoint (50%), cessation (90%)
             cum += h_count
             if onset_month is None and cum >= 0.10 * annual_total:
                 onset_month = m
-            if peak_month is None and cum >= 0.50 * annual_total:
-                peak_month = m
+            if midpoint_month is None and cum >= 0.50 * annual_total:
+                midpoint_month = m
             if cessation_month is None and cum >= 0.90 * annual_total:
                 cessation_month = m
 
@@ -423,8 +423,11 @@ def generate_26_year_calendar(region, real_daily_list):
                 'anomaly_status': anomaly_status,
             })
 
+        # Actual peak month is the argmax month (maximum detected fire volume)
+        max_month_rec = max(enriched_months, key=lambda x: x['harmonized_count'])
+        season_peak = max_month_rec['month']
         season_onset = onset_month or 6
-        season_peak = peak_month or 8
+        season_midpoint = midpoint_month or 8
         season_cessation = cessation_month or 10
         season_duration_months = max(season_cessation - season_onset + 1, 1)
 
@@ -433,6 +436,7 @@ def generate_26_year_calendar(region, real_daily_list):
             'annual_total_harmonized': annual_total,
             'season_timing': {
                 'onset_month': season_onset,
+                'midpoint_month': season_midpoint,
                 'peak_month': season_peak,
                 'cessation_month': season_cessation,
                 'duration_months': season_duration_months

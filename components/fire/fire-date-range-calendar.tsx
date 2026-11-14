@@ -33,7 +33,7 @@ export function FireDateRangeCalendar({
   startDate,
   endDate,
   onChangeDateRange,
-  minDate = "2000-01-01",
+  minDate = "2000-11-01",
   maxDate = "2026-11-09",
   onClose,
 }: FireDateRangeCalendarProps) {
@@ -58,11 +58,11 @@ export function FireDateRangeCalendar({
       id: "7d",
       label: "7d",
       fullLabel: "Last 7 Days",
-      start: "2026-11-02",
+      start: "2026-11-03",
       end: "2026-11-09",
       viewYear: 2026,
       viewMonth: 10, // Nov
-      description: "Nov 2 – Nov 9, 2026 (Recent hotspot activity)",
+      description: "Nov 3 – Nov 9, 2026 (7-day post-handover window)",
     },
     {
       id: "30d",
@@ -102,7 +102,7 @@ export function FireDateRangeCalendar({
       end: maxDate,
       viewYear: 2026,
       viewMonth: 10,
-      description: "2000 – 2026 (26-Year climatology)",
+      description: "Nov 2000 – Nov 2026 (26-Year observational record)",
     },
   ], [minDate, maxDate]);
 

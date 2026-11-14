@@ -32,6 +32,7 @@ export interface CalendarMonth {
 
 export interface SeasonTiming {
   onset_month: number;
+  midpoint_month?: number;
   peak_month: number;
   cessation_month: number;
   duration_months: number;
